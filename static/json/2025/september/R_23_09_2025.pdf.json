@@ -1,0 +1,78 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Schönwalder Straße 32 13585 Berlin/Spandau",
+  "invoiceNumber": "0841",
+  "totalSum": 15.89,
+  "items": [
+    {
+      "item": "HIGH PROT. TORT.",
+      "quantity": 1,
+      "price": 1.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "VOLLKORNTORTILLA",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    },
+    {
+      "item": "HUMMUS PIKANT",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "GRANATAPEL",
+      "quantity": 1,
+      "price": 1.19,
+      "pricePerKg": null
+    },
+    {
+      "item": "ZWIEBEL",
+      "quantity": 1,
+      "price": 1.49,
+      "pricePerKg": null
+    },
+    {
+      "item": "RISPENTOMATE",
+      "quantity": 1.01,
+      "price": 1.91,
+      "pricePerKg": 1.89
+    },
+    {
+      "item": "JA! H-MILCH 1,5%",
+      "quantity": 3.0,
+      "price": 2.97,
+      "pricePerKg": 0.99
+    },
+    {
+      "item": "PROTEINMOUSSE",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "BIO WEIZENMEHL",
+      "quantity": 1,
+      "price": 0.89,
+      "pricePerKg": null
+    },
+    {
+      "item": "KOKOSM.CREMIG",
+      "quantity": 1,
+      "price": 1.09,
+      "pricePerKg": null
+    },
+    {
+      "item": "THUNFISCHFI. WAS",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    }
+  ],
+  "date": "2025-09-23",
+  "billId": "R_23_09_2025.pdf",
+  "month": "september",
+  "year": "2025"
+}

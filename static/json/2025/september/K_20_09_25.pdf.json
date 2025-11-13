@@ -1,0 +1,72 @@
+{
+  "shopName": "Kaufland Karl-Liebknecht-Strale 13",
+  "address": "Karl-Liebknecht-Strale 13, 10178 Berlin",
+  "invoiceNumber": "DE145804163",
+  "totalSum": 11.73,
+  "items": [
+    {
+      "item": "Benedikt. Hell",
+      "quantity": 2,
+      "price": 2.1,
+      "pricePerKg": 1.05
+    },
+    {
+      "item": "Pfandartikel",
+      "quantity": 2,
+      "price": 0.16,
+      "pricePerKg": 0.08
+    },
+    {
+      "item": "Aufbewahrungskorb",
+      "quantity": 2,
+      "price": 2.0,
+      "pricePerKg": 1.0
+    },
+    {
+      "item": "K.Mini-Waffelhorn.",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "Borekstick Spi/Kas",
+      "quantity": 2,
+      "price": 1.38,
+      "pricePerKg": 0.69
+    },
+    {
+      "item": "Hahnchentasch. Keb",
+      "quantity": 1,
+      "price": 1.49,
+      "pricePerKg": null
+    },
+    {
+      "item": "Bananen",
+      "quantity": 0.908,
+      "price": 0.72,
+      "pricePerKg": null
+    },
+    {
+      "item": "Cent OuG Beutel",
+      "quantity": 1,
+      "price": 0.01,
+      "pricePerKg": null
+    },
+    {
+      "item": "Handbrot Zaziki",
+      "quantity": 1,
+      "price": 0.59,
+      "pricePerKg": null
+    },
+    {
+      "item": "Dark Crodot",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    }
+  ],
+  "date": "2025-09-20",
+  "billId": "K_20_09_25.pdf",
+  "month": "september",
+  "year": "2025"
+}

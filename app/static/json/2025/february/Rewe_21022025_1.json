@@ -1,0 +1,43 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "DE217623660",
+  "totalSum": 11.53,
+  "items": [
+    {
+      "item": "ARABISCHES BROT",
+      "quantity": 1,
+      "price": 1.09
+    },
+    {
+      "item": "ZWIEBELN",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "NATURJOGHURT",
+      "quantity": 1,
+      "price": 1.79
+    },
+    {
+      "item": "HUEHNERREISTOPF",
+      "quantity": 1,
+      "price": 3.29
+    },
+    {
+      "item": "INST.NUD.GEMUESE",
+      "quantity": 2.0,
+      "unit_price": 0.69,
+      "price": 1.38
+    }
+  ],
+  "date": "21.02.2025",
+  "billId": "Rewe_21022025_1",
+  "month": "february",
+  "year": "2025"
+}

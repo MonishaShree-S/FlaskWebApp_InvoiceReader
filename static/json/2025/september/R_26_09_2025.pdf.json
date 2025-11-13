@@ -1,0 +1,24 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Schönwalder Straße 32 13585 Berlin/Spandau",
+  "invoiceNumber": "2099",
+  "totalSum": 2.78,
+  "items": [
+    {
+      "item": "PIZZABROETCHEN",
+      "quantity": 1,
+      "price": 1.39,
+      "pricePerKg": null
+    },
+    {
+      "item": "THUNFISCH SNACK",
+      "quantity": 1,
+      "price": 1.39,
+      "pricePerKg": null
+    }
+  ],
+  "date": "2025-09-26",
+  "billId": "R_26_09_2025.pdf",
+  "month": "september",
+  "year": "2025"
+}

@@ -1,0 +1,54 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "4008",
+  "totalSum": 4.19,
+  "items": [
+    {
+      "item": "MIWA CLASSIC",
+      "quantity": 1,
+      "price": 0.75,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* MIWA NAT. PET",
+      "quantity": 1,
+      "price": 0.85,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* NATURELL PET FL",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* DURSTL.MULTIVIT.",
+      "quantity": 1,
+      "price": 0.85,
+      "pricePerKg": null
+    }
+  ],
+  "date": "13.08.2025",
+  "billId": "R_13_08_2025_2.pdf",
+  "month": "august",
+  "year": "2025"
+}

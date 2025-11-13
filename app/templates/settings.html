@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Settings</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+  <!-- User Icon -->
+  <div class="user-icon-container">
+    <img src="/static/images/user-icon.png" alt="User" class="user-dropdown-icon" onclick="toggleUserDropdown()">
+    <div class="dropdown-menu" id="userDropdown">
+      <a href="/profile.html">👤 Profile</a>
+      <a href="/settings.html">⚙️ Settings</a>
+      <a href="#" id="logout-link">🚪 Logout</a>
+    </div>
+  </div>
+
+  <div class="password-container">
+    <h2>User Settings</h2>
+
+    <form id="password-form">
+      <label for="new_password">Change Password:</label>
+      <input type="password" id="new_password" name="new_password" required />
+
+      <label for="confirm_password">Enter Password again:</label>
+      <input type="password" id="confirm_password" name="confirm_password" required />
+
+      <button type="submit">Update</button>
+    </form>
+
+    <div id="status-message" style="margin-top: 1em; font-weight: bold;"></div>
+  </div>
+
+  <div style="position: absolute; top: 10px; left: 10px; z-index: 999;">
+    <a href="/index.html" class="btn-home" style="color: white;">🏠 Home</a>
+  </div>
+
+  <script>
+    function toggleUserDropdown() {
+      const dropdown = document.getElementById("userDropdown");
+      dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+    }
+
+    document.addEventListener("click", function (e) {
+      const dropdown = document.getElementById("userDropdown");
+      const icon = document.querySelector(".user-dropdown-icon");
+      if (!dropdown || !icon) return;
+      if (!dropdown.contains(e.target) && !icon.contains(e.target)) {
+        dropdown.style.display = "none";
+      }
+    });
+
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "/login";
+
+    document.getElementById("password-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+
+      const new_password = document.getElementById("new_password").value;
+      const confirm_password = document.getElementById("confirm_password").value;
+      const status = document.getElementById("status-message");
+
+      if (new_password !== confirm_password) {
+        status.textContent = "Passwords do not match.";
+        status.style.color = "red";
+        return;
+      }
+
+      try {
+        const res = await fetch("/auth/settings", {
+          method: "POST",
+          headers: {
+            "Authorization": "Bearer " + token,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ new_password, confirm_password })
+        });
+        const data = await res.json();
+        status.textContent = data.message || data.error || "Unknown error.";
+        status.style.color = data.message ? "green" : "red";
+      } catch (err) {
+        status.textContent = "Network error.";
+        status.style.color = "red";
+      }
+    });
+
+    document.getElementById("logout-link").addEventListener("click", function (e) {
+      e.preventDefault();
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    });
+  </script>
+</body>
+</html>

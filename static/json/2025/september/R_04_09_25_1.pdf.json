@@ -1,0 +1,72 @@
+{
+  "shopName": "REWE",
+  "address": "R E W E Sven Fölski oHG Tamara-Danz-Str. 11 10243 Berlin Öffnungszeiten Mo-Do 07:00-23:00 Uhr Fr-Sa 07:00-24:00 Uhr Steuer.Nr.: 14/491/04514 EUR PAUL.NATURTRUEB 1,19 A",
+  "invoiceNumber": "1707",
+  "totalSum": 4.13,
+  "items": [
+    {
+      "item": "PAUL.NATURTRUEB",
+      "quantity": 1,
+      "price": 1.19,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,08 EUR",
+      "quantity": 1,
+      "price": 0.08,
+      "pricePerKg": null
+    },
+    {
+      "item": "* HELL OBERBRAEU",
+      "quantity": 1,
+      "price": 1.19,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,08 EUR",
+      "quantity": 1,
+      "price": 0.08,
+      "pricePerKg": null
+    },
+    {
+      "item": "* LAGERBIER HELL",
+      "quantity": 1,
+      "price": 1.19,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,08 EUR",
+      "quantity": 1,
+      "price": 0.08,
+      "pricePerKg": null
+    },
+    {
+      "item": "* BAYR. HELL",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,08 EUR",
+      "quantity": 1,
+      "price": 0.08,
+      "pricePerKg": null
+    },
+    {
+      "item": "* LEERG. EW E. ST",
+      "quantity": 1,
+      "price": -0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* LEERGUT EINWEG -",
+      "quantity": 2.0,
+      "price": 0.5,
+      "pricePerKg": 0.25
+    }
+  ],
+  "date": "2025-09-04",
+  "billId": "R_04_09_25_1.pdf",
+  "month": "september",
+  "year": "2025"
+}

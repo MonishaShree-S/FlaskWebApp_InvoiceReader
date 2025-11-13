@@ -1,0 +1,66 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "8981",
+  "totalSum": 2.86,
+  "items": [
+    {
+      "item": "SW PUTE EI",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "BIG CITY",
+      "quantity": 1,
+      "price": 1.88,
+      "pricePerKg": null
+    },
+    {
+      "item": "BIG CITY SYDNEY",
+      "quantity": 1,
+      "price": 1.88,
+      "pricePerKg": null
+    },
+    {
+      "item": "MONSTER PARADISE",
+      "quantity": 1,
+      "price": 0.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* MONSTER LH",
+      "quantity": 1,
+      "price": 0.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* LEERG. MW V. ST",
+      "quantity": 1,
+      "price": -0.15,
+      "pricePerKg": null
+    },
+    {
+      "item": "* LEERG. MW V. ST -",
+      "quantity": 4.0,
+      "price": 0.32,
+      "pricePerKg": 0.08
+    }
+  ],
+  "date": "25.08.2025",
+  "billId": "R_25_08_2025.pdf",
+  "month": "august",
+  "year": "2025"
+}

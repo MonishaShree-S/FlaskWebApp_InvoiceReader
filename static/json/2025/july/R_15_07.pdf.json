@@ -1,0 +1,63 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "1320",
+  "totalSum": 11.91,
+  "items": [
+    {
+      "item": "VOLLKORNTOAST",
+      "quantity": 1,
+      "price": 0.79
+    },
+    {
+      "item": "VOLLKORNTORTILLA",
+      "quantity": 1,
+      "price": 1.29
+    },
+    {
+      "item": "TOFU NATUR",
+      "quantity": 1,
+      "price": 2.19
+    },
+    {
+      "item": "RISPENTOMATE",
+      "quantity": 0.602,
+      "unit_price": 1.29,
+      "price": 0.78
+    },
+    {
+      "item": "SALATGURKE",
+      "quantity": 1,
+      "price": 0.95
+    },
+    {
+      "item": "MINZE",
+      "quantity": 1,
+      "price": 0.89
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "BIO KICHERERBSEN",
+      "quantity": 1,
+      "price": 1.79
+    },
+    {
+      "item": "EDITION LILAC",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25
+    }
+  ],
+  "date": "15.07.2025",
+  "billId": "R_15_07.pdf",
+  "month": "july",
+  "year": "2025"
+}

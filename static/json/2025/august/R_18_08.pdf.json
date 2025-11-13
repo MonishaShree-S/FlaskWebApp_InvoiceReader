@@ -1,0 +1,90 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "9805",
+  "totalSum": 16.92,
+  "items": [
+    {
+      "item": "SCHINKENGULASCH",
+      "quantity": 1,
+      "price": 4.19,
+      "pricePerKg": null
+    },
+    {
+      "item": "Frischerabatt",
+      "quantity": 1,
+      "price": -1.26,
+      "pricePerKg": null
+    },
+    {
+      "item": "HA-CHICKEN WINGS",
+      "quantity": 1,
+      "price": 2.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "Frischerabatt",
+      "quantity": 1,
+      "price": -0.9,
+      "pricePerKg": null
+    },
+    {
+      "item": "BLATTSPINAT BIO",
+      "quantity": 1,
+      "price": 1.11,
+      "pricePerKg": null
+    },
+    {
+      "item": "BIO KUERBIS",
+      "quantity": 0.866,
+      "price": 1.72,
+      "pricePerKg": 1.99
+    },
+    {
+      "item": "RISPENTOMATE",
+      "quantity": 1.338,
+      "price": 1.32,
+      "pricePerKg": 0.99
+    },
+    {
+      "item": "KAISERSCHOTEN",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "KORIANDER",
+      "quantity": 1,
+      "price": 0.89,
+      "pricePerKg": null
+    },
+    {
+      "item": "BIO DINKELMEHL",
+      "quantity": 1,
+      "price": 1.39,
+      "pricePerKg": null
+    },
+    {
+      "item": "KOKOSM.CREMIG",
+      "quantity": 1,
+      "price": 1.09,
+      "pricePerKg": null
+    },
+    {
+      "item": "THUNFISCHFI. OEL",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    },
+    {
+      "item": "JA FRISCHHALTE",
+      "quantity": 1,
+      "price": 1.1,
+      "pricePerKg": null
+    }
+  ],
+  "date": "18.08.2025",
+  "billId": "R_18_08.pdf",
+  "month": "august",
+  "year": "2025"
+}

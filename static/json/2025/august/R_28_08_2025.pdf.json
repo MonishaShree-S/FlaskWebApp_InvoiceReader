@@ -1,0 +1,78 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "0908",
+  "totalSum": 11.23,
+  "items": [
+    {
+      "item": "SW PUTE EI",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "JA! JOGHURT 1,5",
+      "quantity": 1,
+      "price": 0.89,
+      "pricePerKg": null
+    },
+    {
+      "item": "1-2-3 GOLDEN LON",
+      "quantity": 1,
+      "price": 2.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "MONSTER ULTRA WA",
+      "quantity": 1,
+      "price": 0.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* ULTRA PEACHY Z.",
+      "quantity": 1,
+      "price": 0.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* MONSTER FIESTA",
+      "quantity": 1,
+      "price": 0.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* GR. PAPIERTASCHE",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    }
+  ],
+  "date": "28.08.2025",
+  "billId": "R_28_08_2025.pdf",
+  "month": "august",
+  "year": "2025"
+}

@@ -1,0 +1,54 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Schönwalder Straße 32 13585 Berlin/Spandau",
+  "invoiceNumber": "9634",
+  "totalSum": 7.33,
+  "items": [
+    {
+      "item": "PROTEINBROETCHEN",
+      "quantity": 1,
+      "price": 1.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "ROTE BETE FRISCH",
+      "quantity": 0.486,
+      "price": 0.58,
+      "pricePerKg": 1.19
+    },
+    {
+      "item": "CHERRYROMATOMATE",
+      "quantity": 1,
+      "price": 0.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "JA! H-MILCH 1,5%",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "JA! RAFF.ZUCKER",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "KL.PAPIERTASCHE",
+      "quantity": 1,
+      "price": 0.2,
+      "pricePerKg": null
+    }
+  ],
+  "date": "2025-10-27",
+  "billId": "R_14102025.pdf",
+  "month": "october",
+  "year": "2025"
+}

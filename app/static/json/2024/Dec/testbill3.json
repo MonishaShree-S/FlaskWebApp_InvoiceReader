@@ -1,0 +1,57 @@
+{
+  "ShopName": "Kaufland Rudower Chaussee 12",
+  "Address": "Rudower Chaussee 12\n 12489 Berlin",
+  "InvoiceNumber": "DE193076059",
+  "TotalSum": 11.32,
+  "ItemsPurchased": [
+    {
+      "Item": "bevToipaSensi140s",
+      "Quantity": 1,
+      "Price": 1.25
+    },
+    {
+      "Item": "Barenm.H-Milch 3  8",
+      "Quantity": 1,
+      "Price": 0.95
+    },
+    {
+      "Item": "Barenm.H-Milch",
+      "Quantity": 1,
+      "Price": 0.95
+    },
+    {
+      "Item": "Weisskohl 1,878 kg",
+      "Quantity": 1,
+      "Price": 1.86
+    },
+    {
+      "Item": "1 Cent OuG Beutel",
+      "Quantity": 1,
+      "Price": 0.01
+    },
+    {
+      "Item": "Zwiebeln 2kg",
+      "Quantity": 1,
+      "Price": 1.59
+    },
+    {
+      "Item": "Paprika Mix 500g",
+      "Quantity": 1,
+      "Price": 1.39
+    },
+    {
+      "Item": "Landgurken 1,150 kg",
+      "Quantity": 1,
+      "Price": 2.63
+    },
+    {
+      "Item": "Kn Fix Pap. Gulasch",
+      "Quantity": 1,
+      "Price": 0.69
+    }
+  ],
+  "Date": "12 .12.24",
+  "Bill_Id": "testbill3",
+  "Month": "Dec",
+  "Year": "2024"
+}

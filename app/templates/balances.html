@@ -1,0 +1,215 @@
+{% set f = current_filters or {} %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Your Balances</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style> body { background-color: #f8f9fa; } .badge-filter {font-size: 0.85rem;} </style>
+</head>
+<body>
+<a class="btn btn-outline-secondary" href="{{ url_for('main.index') }}">🏠 Home</a>
+  <div class="container mt-4">
+    <!-- Filters -->
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h5 class="mb-0">Filters</h5>
+        <small class="text-muted">Any combination: Shop, Month, or Period (Start–End)</small>
+      </div>
+      <div class="card-body">
+        <form id="balance-filter-form" class="form-inline" method="GET" action="{{ url_for('main.view_balances') }}">
+          <div class="form-group mr-3 mb-2">
+            <label for="shop" class="mr-2">Shop</label>
+            <input id="shop" name="shop" class="form-control" placeholder="e.g., rewe"
+                   value="{{ f.get('shop','') }}">
+          </div>
+
+          <!-- Single-month filter -->
+          <div class="form-group mr-3 mb-2">
+            <label for="month" class="mr-2">Month</label>
+            <input id="month" name="month" type="month" class="form-control"
+                   value="{{ f.get('month','') }}">
+          </div>
+
+          <!-- Period filter (start/end months) -->
+          <div class="form-group mr-3 mb-2">
+            <label for="start" class="mr-2">Start</label>
+            <input id="start" name="start" type="month" class="form-control"
+                   value="{{ f.get('start','') }}">
+          </div>
+
+          <div class="form-group mr-3 mb-2">
+            <label for="end" class="mr-2">End</label>
+            <input id="end" name="end" type="month" class="form-control"
+                   value="{{ f.get('end','') }}">
+          </div>
+
+          <button type="submit" class="btn btn-primary mb-2 mr-2">Apply</button>
+          <a class="btn btn-outline-secondary mb-2" href="{{ url_for('main.view_balances') }}">Reset</a>
+        </form>
+
+        {% if f.get('shop') or f.get('month') or f.get('start') or f.get('end') %}
+          <div class="mt-2">
+            <span class="badge badge-info badge-filter">Shop: {{ f.get('shop','–') or '–' }}</span>
+            <span class="badge badge-info badge-filter">Month: {{ f.get('month','–') or '–' }}</span>
+            <span class="badge badge-info badge-filter">Start: {{ f.get('start','–') or '–' }}</span>
+            <span class="badge badge-info badge-filter">End: {{ f.get('end','–') or '–' }}</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="row">
+      <div class="col-md-6">
+        <div class="alert alert-success">
+          <h4 class="mb-1">Total Money Owed to You</h4>
+          <p class="h3 mb-0">{{ total_money_owed }}</p>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="alert alert-warning">
+          <h5 class="mb-1">Total Money You Owe</h5>
+          <p class="h3 mb-0">{{ total_money_borrowed }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- You Owe -->
+    <div class="card mb-4">
+      <div class="card-header"><h5 class="mb-0">Money You Owe</h5></div>
+      <div class="card-body">
+        {% if owed_details %}
+          <table class="table table-hover">
+            <thead><tr><th>Name</th><th>Email</th><th>Amount</th><th>Action</th></tr></thead>
+            <tbody>
+              {% for d in owed_details %}
+              <tr>
+                <td>{{ d.name }}</td>
+                <td>{{ d.email }}</td>
+                <td>{{ d.amount }}</td>
+                <td>
+                  {% if d.amount > 0 %}
+                  <button class="btn btn-success btn-sm"
+                          onclick="openSettleDialog('{{ d.email }}', '{{ session.username }}', {{ d.amount }})">
+                    Settle
+                  </button>
+                  {% else %}
+                    <span class="text-success font-weight-bold">✅ Settled</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-muted mb-0">No outstanding debts where you owe money.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Owed To You -->
+    <div class="card mb-5">
+      <div class="card-header"><h5 class="mb-0">Money Owed to You</h5></div>
+      <div class="card-body">
+        {% if borrowed_details %}
+          <table class="table table-hover">
+            <thead><tr><th>Name</th><th>Email</th><th>Amount</th><th>Action</th></tr></thead>
+            <tbody>
+              {% for d in borrowed_details %}
+              <tr>
+                <td>{{ d.name }}</td>
+                <td>{{ d.email }}</td>
+                <td>{{ d.amount }}</td>
+                <td>
+                  {% if d.amount > 0 %}
+                  <button class="btn btn-success btn-sm"
+                          onclick="openSettleDialog('{{ session.username }}', '{{ d.email }}', {{ d.amount }})">
+                    Settle
+                  </button>
+                  {% else %}
+                    <span class="text-success font-weight-bold">Settled</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-muted mb-0">No outstanding debts where others owe you money.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Settle (simple prompt UI for full/partial, reuses your JSON POST endpoint) -->
+  <script>
+    function openSettleDialog(paidBy, owedBy, maxAmount) {
+      const full = confirm("OK = Full settlement\\nCancel = Enter a partial amount");
+      let payload = { paid_by: paidBy, owed_by: owedBy, full_settlement: full, amount_paid: null, method: "manual" };
+
+      if (!full) {
+        const amt = prompt(`Enter amount to settle (Remaining: ${maxAmount}):`);
+        if (!amt || isNaN(amt) || parseFloat(amt) <= 0) { alert("Invalid amount."); return; }
+        if (parseFloat(amt) > parseFloat(maxAmount)) { alert("Amount exceeds remaining debt."); return; }
+        payload.amount_paid = parseFloat(amt);
+      }
+
+      fetch("{{ url_for('main.settle_debt') }}", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) location.reload();
+        else alert(d.error || "Failed to settle.");
+      })
+      .catch(() => alert("Network error while settling."));
+    }
+
+    // Simple client-side check for start/end period
+    document.getElementById('balance-filter-form').addEventListener('submit', function (e) {
+      const start = document.getElementById('start').value; // YYYY-MM or ''
+      const end = document.getElementById('end').value;     // YYYY-MM or ''
+      if (start && end && start > end) {
+        e.preventDefault();
+        alert('Start month must be before or the same as End month.');
+      }
+    });
+    // (Optional) Reverse settlement helper — call this from a button AFTER you add the backend route.
+    function reverseSettlement(paidBy, owedBy) {
+      if (!confirm("Reverse the settlement between:\nPaid by: " + paidBy + "\nOwed by: " + owedBy + "?")) return;
+      fetch("/reverse_settlement", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ paid_by: paidBy, owed_by: owedBy })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) location.reload();
+        else alert(data.error || "Could not reverse.");
+      })
+      .catch(() => alert("Network error while reversing."));
+    }
+
+    // Client-side guard for period filter
+    document.getElementById('balance-filter-form').addEventListener('submit', function (e) {
+      const start = document.getElementById('start').value; // YYYY-MM
+      const end = document.getElementById('end').value;     // YYYY-MM
+      if (start && end && start > end) {
+        e.preventDefault();
+        alert('Start month must be before or the same as End month.');
+      }
+    });
+
+  </script>
+
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>

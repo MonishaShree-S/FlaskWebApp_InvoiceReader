@@ -1,0 +1,37 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "9425",
+  "totalSum": 3.12,
+  "items": [
+    {
+      "item": "SCHOKO-DRINK",
+      "quantity": 1,
+      "price": 0.79
+    },
+    {
+      "item": "MAGGI FIX CHILI",
+      "quantity": 1,
+      "price": 0.44
+    },
+    {
+      "item": "KIDNEYBOHNEN",
+      "quantity": 1,
+      "price": 0.79
+    },
+    {
+      "item": "RB JUNEBERRY",
+      "quantity": 1,
+      "price": 0.85
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25
+    }
+  ],
+  "date": "09.04.2025",
+  "billId": "R_09042025_B.pdf",
+  "month": "april",
+  "year": "2025"
+}

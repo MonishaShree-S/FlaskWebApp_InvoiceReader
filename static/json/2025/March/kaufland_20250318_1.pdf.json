@@ -1,0 +1,27 @@
+{
+  "shopName": "Kaufland Am Juliusturm 40-46",
+  "address": "Am Juliusturm 40-46, 13599 Berlin",
+  "invoiceNumber": "DE222014432",
+  "totalSum": 85.21,
+  "items": [
+    {
+      "item": "KLCKnuspersnack Pf 2 0  79 58 K Card Rabatt 24 Crunchips Hot Pap 11 Card Rabatt 12 KLC Pains au Choco 99 K Card Rabatt Mais gekocht BBQ Buschbohnen 500g Deit Frichte Pfandartikel Deit Zitrone trib Pfandartikel KLC Ketchup 500ml K Card Rabatt Paulaner Spezi Pfandartikel Mutti gescha. Toma Mutti fei.geh Tom K.Knoblauchsauce K Card Rabatt KLC Gemisemais KLC Geh . Tomaten B KLC Pommessauce K Card Rabatt KLC. Flussigwirze Card Rabatt 0 KLC pass Tomat 3x 99 KLC Kichererbsen 0 59 1,18 K. Champignons W 2",
+      "quantity": 1,
+      "price": 2.78
+    },
+    {
+      "item": "Aufst.Fleischsalat 00 B Brotaufst.Kase/ 0b 00 B Brotaufst. Kase/ Ch 00 B Grillsauce Chipotl 99 B Nivea Duschgel 45 Card Rabatt 37 KLC Duftst emon 95 KLC . Topfreiniger 75 K.Mischstreichfett 79 B K.Gefrierbeutel 1L 50 A Cremis. Nogger Choc 99 Champignon 250g 00 00 Phil.Natur Protein 00 Hahnchenbrust B Fin Chicken B Cremis. Stracciatel 99 B Blumenkohl 99 B Knoblauch 200g B bev . Binden Ultra 99 B Rote Bete 414 kg 62 B Broccoli 500g 29 B K-Cl.FeuToi2",
+      "quantity": 7,
+      "price": 0.25
+    },
+    {
+      "item": "lpia Schokolade 2 0,99 98 Weltmeisterbrot 11 B Finesse Hahnchenb 49 B Coleslaw 200g 79 Boreckstick Hahnc 2",
+      "quantity": 1,
+      "price": 0.79
+    }
+  ],
+  "date": null,
+  "billId": "kaufland_20250318_1.pdf",
+  "month": "march",
+  "year": "2025"
+}

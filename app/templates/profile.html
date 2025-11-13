@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>User Profile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
+</head>
+<body>
+  <!-- User Icon -->
+  <div class="user-icon-container">
+    <img src="/static/images/user-icon.png" alt="User" class="user-dropdown-icon" onclick="toggleUserDropdown()">
+    <div class="dropdown-menu" id="userDropdown">
+      <a href="/profile.html">👤 Profile</a>
+      <a href="/settings.html">⚙️ Settings</a>
+      <a href="#" id="logout-link">🚪 Logout</a>
+    </div>
+  </div>
+
+  <div class="profile-container">
+    <h1 class="text-center">User Profile</h1>
+
+    <div class="profile-info">
+      <label>Username:</label>
+      <span id="username"></span>
+    </div>
+    <div class="profile-info">
+      <label>First Name:</label>
+      <span id="firstname"></span>
+    </div>
+    <div class="profile-info">
+      <label>Last Name:</label>
+      <span id="lastname"></span>
+    </div>
+    <div class="profile-info">
+      <label>Email:</label>
+      <span id="email"></span>
+    </div>
+
+    <div class="profile-actions">
+      <a href="/settings.html" class="custom-btn">Change Password</a>
+      <a href="#" id="logout-link2" class="custom-btn btn-secondary">Logout</a>
+    </div>
+  </div>
+
+  <div style="position: absolute; top: 10px; left: 10px; z-index: 999;">
+    <a href="/index.html" class="btn-home" style="color: white;">🏠 Home</a>
+  </div>
+
+  <script>
+    function toggleUserDropdown() {
+      const dropdown = document.getElementById("userDropdown");
+      dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+    }
+
+    document.addEventListener("click", function (e) {
+      const dropdown = document.getElementById("userDropdown");
+      const icon = document.querySelector(".user-dropdown-icon");
+      if (!dropdown || !icon) return;
+      if (!dropdown.contains(e.target) && !icon.contains(e.target)) {
+        dropdown.style.display = "none";
+      }
+    });
+
+    const user = JSON.parse(localStorage.getItem("user"));
+    const token = localStorage.getItem("token");
+    if (!user || !token) {
+      window.location.href = "/login";
+    }
+
+    document.getElementById("username").textContent = user.username;
+    document.getElementById("firstname").textContent = user.firstname;
+    document.getElementById("lastname").textContent = user.lastname;
+    document.getElementById("email").textContent = user.username;
+
+    document.querySelectorAll("#logout-link, #logout-link2").forEach(el =>
+      el.addEventListener("click", e => {
+        e.preventDefault();
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+      })
+    );
+  </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+{
+  "shopName": "Kaufland Karl-Marx-Strale 231-235",
+  "address": "Karl-Marx-Strale 231-235, 12055 Berlin",
+  "invoiceNumber": "DE145803793",
+  "totalSum": 36.71,
+  "items": [
+    {
+      "item": "KLC Pesto Calab",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "KLC Pesto Rosso",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "Krauter Minze",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "Krauter Koriander",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "bevToipaSensi140s",
+      "quantity": 1,
+      "price": 1.25
+    },
+    {
+      "item": "K Card Rabatt",
+      "quantity": 1,
+      "price": -0.19
+    },
+    {
+      "item": "K.Blumenkohl",
+      "quantity": 1,
+      "price": 2.39
+    },
+    {
+      "item": "KLC Kokosnussmilch",
+      "quantity": 1,
+      "price": 1.19
+    },
+    {
+      "item": "KLC . Kidneybohnen 2 0,69",
+      "quantity": 1,
+      "price": 1.38
+    },
+    {
+      "item": "KLC Kichererbsen 2 0,59",
+      "quantity": 1,
+      "price": 1.18
+    },
+    {
+      "item": "KLC . Gemisemais",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "K. Gemisepfa. Rust",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "K.Erbsen",
+      "quantity": 1,
+      "price": 2.39
+    },
+    {
+      "item": "Kn. Fix Chili C . Car 2 0,39",
+      "quantity": 1,
+      "price": 0.78
+    },
+    {
+      "item": "Kn. Fix NudelHahAuf",
+      "quantity": 1,
+      "price": 0.39
+    },
+    {
+      "item": "Kn. Fix Rahm-Champ",
+      "quantity": 1,
+      "price": 0.39
+    },
+    {
+      "item": "Lotus Biscoff Keks",
+      "quantity": 1,
+      "price": 1.29
+    },
+    {
+      "item": "K Card Rabatt",
+      "quantity": 1,
+      "price": -0.18
+    },
+    {
+      "item": "KLC . Topfreiniger",
+      "quantity": 1,
+      "price": 0.65
+    },
+    {
+      "item": "KTG Sandwich",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "Broccoli 500g",
+      "quantity": 1,
+      "price": 1.49
+    },
+    {
+      "item": "Mohren 1kg",
+      "quantity": 1,
+      "price": 0.79
+    },
+    {
+      "item": "Rote Bete 0,664 kg",
+      "quantity": 1,
+      "price": 1.06
+    },
+    {
+      "item": "Wassermelone 3,408 kg",
+      "quantity": 1,
+      "price": 2.69
+    },
+    {
+      "item": "Bananen 0,994 kg",
+      "quantity": 1,
+      "price": 1.28
+    },
+    {
+      "item": "Lauchzwiebeln",
+      "quantity": 1,
+      "price": 0.49
+    },
+    {
+      "item": "Radieschen",
+      "quantity": 1,
+      "price": 0.49
+    },
+    {
+      "item": "Rettich Weiss 69 B Borekstick Spi/Kas",
+      "quantity": 1,
+      "price": 0.55
+    },
+    {
+      "item": "Boreckstick Hahnc",
+      "quantity": 1,
+      "price": 0.79
+    },
+    {
+      "item": "Donut Oreo",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "Quarkballchen 2 0,29",
+      "quantity": 1,
+      "price": 0.58
+    },
+    {
+      "item": "Champignon-Tasche 03 B Geflugelrolle",
+      "quantity": 1,
+      "price": 0.95
+    }
+  ],
+  "date": "24.07.25",
+  "billId": "K_24072025_M.pdf",
+  "month": "july",
+  "year": "2025"
+}

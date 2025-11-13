@@ -1,0 +1,148 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Schönwalder Straße 32 13585 Berlin/Spandau",
+  "invoiceNumber": "1771",
+  "totalSum": 34.86,
+  "items": [
+    {
+      "item": "VOLLKORNTORTILLA",
+      "quantity": 2.0,
+      "unit_price": 1.29,
+      "price": 2.58,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "FRISCHEIWAFFEL",
+      "quantity": 1,
+      "price": 1.49,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "PITAROLL CHEESE",
+      "quantity": 1,
+      "price": 2.29,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "ORANGE BIO",
+      "quantity": 1,
+      "price": 4.49,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "BANANE BANDEROLE",
+      "weight_quantity": 0.548,
+      "pricePerKg": 1.29,
+      "price": 0.71,
+      "unit_price": null,
+      "quantity": null
+    },
+    {
+      "item": "GRANATAPFEL",
+      "quantity": 1,
+      "price": 1.69,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "ZWIEBEL",
+      "quantity": 1,
+      "price": 1.29,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "RISPENTOMATE",
+      "weight_quantity": 0.686,
+      "pricePerKg": 1.99,
+      "price": 1.37,
+      "unit_price": null,
+      "quantity": null
+    },
+    {
+      "item": "MINZE",
+      "quantity": 1,
+      "price": 1.79,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "JA! H-MILCH 1,5%",
+      "quantity": 1,
+      "price": 0.99,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "BACKTEIG NUGGETS",
+      "quantity": 1,
+      "price": 2.49,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "CH. WINGS HOT",
+      "quantity": 1,
+      "price": 4.49,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "BIO TK BL.SPINAT",
+      "quantity": 1,
+      "price": 2.49,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "MINI FRUHL.ROLL",
+      "quantity": 1,
+      "price": 2.59,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "THUNFISCHFI. WAS",
+      "quantity": 1,
+      "price": 1.29,
+      "unit_price": null,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "5.0 ORGINAL HELL",
+      "quantity": 3.0,
+      "unit_price": 0.69,
+      "price": 2.07,
+      "pricePerKg": null,
+      "weight_quantity": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 3.0,
+      "unit_price": 0.25,
+      "price": 0.75,
+      "pricePerKg": null,
+      "weight_quantity": null
+    }
+  ],
+  "date": "2025-10-18",
+  "billId": "R_18_10_2025.pdf",
+  "month": "october",
+  "year": "2025"
+}

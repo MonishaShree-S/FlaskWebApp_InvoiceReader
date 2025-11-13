@@ -1,0 +1,23 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "7211",
+  "totalSum": 4.96,
+  "items": [
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "JA! H-MILCH 1,5%",
+      "quantity": 3.0,
+      "unit_price": 0.99,
+      "price": 2.97
+    }
+  ],
+  "date": "29.07.2025",
+  "billId": "R_29_07_25.pdf",
+  "month": "july",
+  "year": "2025"
+}

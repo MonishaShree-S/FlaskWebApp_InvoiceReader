@@ -1,0 +1,102 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Schönwalder Straße 32 13585 Berlin/Spandau",
+  "invoiceNumber": "DE217623660",
+  "totalSum": 15.24,
+  "items": [
+    {
+      "item": "PUTENBRUST M.H.",
+      "quantity": 1,
+      "price": 2.59,
+      "pricePerKg": null
+    },
+    {
+      "item": "Frischerabatt",
+      "quantity": 1,
+      "price": -0.78,
+      "pricePerKg": null
+    },
+    {
+      "item": "FINESSE",
+      "quantity": 1,
+      "price": 2.59,
+      "pricePerKg": null
+    },
+    {
+      "item": "Frischerabatt",
+      "quantity": 1,
+      "price": -0.78,
+      "pricePerKg": null
+    },
+    {
+      "item": "HAEHNCHENB HONIG",
+      "quantity": 1,
+      "price": 2.59,
+      "pricePerKg": null
+    },
+    {
+      "item": "Frischerabatt",
+      "quantity": 1,
+      "price": -0.78,
+      "pricePerKg": null
+    },
+    {
+      "item": "TOAST SKS",
+      "quantity": 1,
+      "price": 1.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "WEIZENVOLLK.SAND",
+      "quantity": 1,
+      "price": 1.09,
+      "pricePerKg": null
+    },
+    {
+      "item": "VOLLKORNTORTILLA",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    },
+    {
+      "item": "HUMMUS PIKANT",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "RISPENTOMATE",
+      "quantity": 0.766,
+      "price": 1.37,
+      "pricePerKg": 1.79
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "MM SCHOKO-COCOS",
+      "quantity": 1,
+      "price": 0.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "* GR. PAPIERTASCHE",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    }
+  ],
+  "date": "2025-09-04",
+  "billId": "R_04_09_25.pdf",
+  "month": "",
+  "year": ""
+}

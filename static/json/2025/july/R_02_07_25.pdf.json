@@ -1,0 +1,47 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "5372",
+  "totalSum": 6.45,
+  "items": [
+    {
+      "item": "ZWIEBEL",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "SALATGURKE",
+      "quantity": 1,
+      "price": 0.59
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99
+    },
+    {
+      "item": "MM DUBAI",
+      "quantity": 1,
+      "price": 0.69
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25
+    },
+    {
+      "item": "* MM EISKAFFEE H",
+      "quantity": 1,
+      "price": 0.69
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25
+    }
+  ],
+  "date": "02.07.2025",
+  "billId": "R_02_07_25.pdf",
+  "month": "july",
+  "year": "2025"
+}

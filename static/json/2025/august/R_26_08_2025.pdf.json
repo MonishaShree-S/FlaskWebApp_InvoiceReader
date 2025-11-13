@@ -1,0 +1,36 @@
+{
+  "shopName": "REWE",
+  "address": "REWE, REWE, Markt Ahmet Akay oHG Karlstra\u00dfe 4-6 60329 Frankfurt Gallus",
+  "invoiceNumber": "6266",
+  "totalSum": 6.22,
+  "items": [
+    {
+      "item": "SW PUTE EI",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "GEROLST. SPRUDEL",
+      "quantity": 1,
+      "price": 0.89,
+      "pricePerKg": null
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    },
+    {
+      "item": "GEFLUEGELLROLLE",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    }
+  ],
+  "date": "26.08.2025",
+  "billId": "R_26_08_2025.pdf",
+  "month": "august",
+  "year": "2025"
+}

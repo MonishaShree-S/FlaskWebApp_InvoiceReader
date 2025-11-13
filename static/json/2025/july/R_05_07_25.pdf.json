@@ -1,0 +1,27 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "4967",
+  "totalSum": 5.17,
+  "items": [
+    {
+      "item": "ZITRONEN",
+      "quantity": 1,
+      "price": 1.49
+    },
+    {
+      "item": "DIE FEINEN KART.",
+      "quantity": 1,
+      "price": 2.19
+    },
+    {
+      "item": "KAROTTE BIO",
+      "quantity": 1,
+      "price": 1.49
+    }
+  ],
+  "date": "05.07.2025",
+  "billId": "R_05_07_25.pdf",
+  "month": "july",
+  "year": "2025"
+}

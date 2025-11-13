@@ -1,0 +1,36 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "1335",
+  "totalSum": 5.21,
+  "items": [
+    {
+      "item": "KORIANDER",
+      "quantity": 2.0,
+      "price": 1.78,
+      "pricePerKg": 0.89
+    },
+    {
+      "item": "MINZE",
+      "quantity": 1,
+      "price": 0.89,
+      "pricePerKg": null
+    },
+    {
+      "item": "BRH ALPENSALZ",
+      "quantity": 1,
+      "price": 0.75,
+      "pricePerKg": null
+    },
+    {
+      "item": "DUFT MUELLB. 20L",
+      "quantity": 1,
+      "price": 1.79,
+      "pricePerKg": null
+    }
+  ],
+  "date": "02.08.2025",
+  "billId": "R_02_08_M.pdf",
+  "month": "august",
+  "year": "2025"
+}

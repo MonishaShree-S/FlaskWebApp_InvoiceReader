@@ -1,0 +1,78 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "2077",
+  "totalSum": 20.11,
+  "items": [
+    {
+      "item": "HA-SCHENKEL M R.",
+      "quantity": 1,
+      "price": 3.72,
+      "pricePerKg": null
+    },
+    {
+      "item": "KAROTTE BIO",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    },
+    {
+      "item": "RISPENTOMATE",
+      "quantity": 0.904,
+      "price": 1.17,
+      "pricePerKg": 1.29
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "JA! MARKENBUTTER",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "JA! H-MILCH 1,5%",
+      "quantity": 2.0,
+      "price": 1.98,
+      "pricePerKg": 0.99
+    },
+    {
+      "item": "NATURJOGHURT 1,5",
+      "quantity": 1,
+      "price": 1.79,
+      "pricePerKg": null
+    },
+    {
+      "item": "SOFTCAKE ORANGE",
+      "quantity": 1,
+      "price": 2.49,
+      "pricePerKg": null
+    },
+    {
+      "item": "SOFT CAKE MARAC.",
+      "quantity": 1,
+      "price": 2.49,
+      "pricePerKg": null
+    },
+    {
+      "item": "SPUELM ZITRUS",
+      "quantity": 1,
+      "price": 0.95,
+      "pricePerKg": null
+    },
+    {
+      "item": "GR. PAPIERTASCHE",
+      "quantity": 1,
+      "price": 0.25,
+      "pricePerKg": null
+    }
+  ],
+  "date": "08.08.2025",
+  "billId": "R_08_08.pdf",
+  "month": "august",
+  "year": "2025"
+}

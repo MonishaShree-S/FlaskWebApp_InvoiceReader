@@ -1,0 +1,67 @@
+{
+  "ShopName": "Kaufland Pichelswerderstrale 6",
+  "Address": "Pichelswerderstrale 6\n 13597 Berlin",
+  "InvoiceNumber": "DE172374990",
+  "TotalSum": 17.31,
+  "ItemsPurchased": [
+    {
+      "Item": "KLC. Choco Happs",
+      "Quantity": 1,
+      "Price": 2.79
+    },
+    {
+      "Item": "K.Waffel VanSchok",
+      "Quantity": 1,
+      "Price": 1.99
+    },
+    {
+      "Item": "KLC . Pains au Choco",
+      "Quantity": 2,
+      "Price": 3.18
+    },
+    {
+      "Item": "Vollkorn-Sandwich",
+      "Quantity": 1,
+      "Price": 1.49
+    },
+    {
+      "Item": "Knoblauchbaguette",
+      "Quantity": 2,
+      "Price": 1.58
+    },
+    {
+      "Item": "KLC Wraps Vollkorn",
+      "Quantity": 2,
+      "Price": 2.58
+    },
+    {
+      "Item": "KLC . Korkenz.mit Ei",
+      "Quantity": 1,
+      "Price": 1.19
+    },
+    {
+      "Item": "Reeva Inst.Nudeln",
+      "Quantity": 2,
+      "Price": 1.18
+    },
+    {
+      "Item": "K Card Rabatt",
+      "Quantity": 1,
+      "Price": -0.36
+    },
+    {
+      "Item": "Fel VK PenneRigate",
+      "Quantity": 1,
+      "Price": 0.99
+    },
+    {
+      "Item": "KLC Fix Rahm. cham",
+      "Quantity": 2,
+      "Price": 0.7
+    }
+  ],
+  "Date": "14.01.25",
+  "Bill_Id": "14012025_1",
+  "Month": "Jan",
+  "Year": "2025"
+}

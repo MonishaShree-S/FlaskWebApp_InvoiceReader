@@ -1,0 +1,48 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "4049",
+  "totalSum": 6.86,
+  "items": [
+    {
+      "item": "PHILADELPHIA",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "WEIZENVOLLK.SAND",
+      "quantity": 1,
+      "price": 1.09,
+      "pricePerKg": null
+    },
+    {
+      "item": "VOLLKORNTORTILLA",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    },
+    {
+      "item": "BANANE BANDEROLE",
+      "quantity": 0.68,
+      "price": 0.88,
+      "pricePerKg": 1.29
+    },
+    {
+      "item": "HELL KOSMONAUT",
+      "quantity": 3.0,
+      "price": 2.37,
+      "pricePerKg": 0.79
+    },
+    {
+      "item": "PFAND 0,08 EUR",
+      "quantity": 3.0,
+      "price": 0.24,
+      "pricePerKg": 0.08
+    }
+  ],
+  "date": "05.08.2025",
+  "billId": "R_05_08.pdf",
+  "month": "august",
+  "year": "2025"
+}

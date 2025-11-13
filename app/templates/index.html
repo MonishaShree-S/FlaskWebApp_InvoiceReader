@@ -1,0 +1,544 @@
+<!-- Flaskapp/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <title>Upload PDF or View Data</title>
+    <style>
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .options {
+            margin-bottom: 20px;
+        }
+        .options h2 {
+            margin-top: 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            border: none;
+            background-color: #007bff;
+            color: #fff;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        form {
+            margin-top: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="file"], input[type="submit"], input[type="date"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            background-color: #28a745;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        input[type="submit"]:hover {
+            background-color: #218838;
+        }
+        .message {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    {% include 'user_icon.html' %}
+    <div class="dashboard-container">
+        <h1>Hello, {{ current_user.firstname }}!</h1>
+
+        <div class="options">
+            <h2>What would you like to do?</h2>
+            <button id="upload-btn">Upload a File</button>
+            <button id="upload-sheet-btn">Upload Sheet</button>
+            <button id="view-btn">View Invoices</button>
+            <button id="view-balance-btn" onclick="location.href='{{ url_for('main.view_balances') }}'">View Balances</button>
+        </div>
+
+        <div id="upload-section" style="display: none;">
+            <h2>Upload a PDF</h2>
+            <form id="upload-form" action="{{ url_for('main.upload_file') }}" method="post" enctype="multipart/form-data">
+                <label for="filename">Filename:</label>
+                <input type="text" id="filename" name="filename" required>
+                <button type="button" id="check-filename-btn">Check Filename</button>
+                <div id="filename-check-message" class="message"></div><br><br>
+
+                <label for="NameOfTheShop">Shop Name:</label>
+                <select id="NameOfTheShop" name="NameOfTheShop" class="form-control" required>
+                    <option value="">Select Shop</option>
+                    <option value="Rewe">Rewe</option>
+                    <option value="Kaufland">Kaufland</option>
+                    <option value="Woolworth">Woolworth</option>
+                    <option value="DM">DM</option>
+                    <option value="Rossmann">Rossmann</option>
+                    <option value="Edeka">Edeka</option>
+                    <option value="Lidl">Lidl</option>
+                    <option value="EuroShop">EuroShop</option>
+                    <option value="Asia Might">Asia Might</option>
+                    <option value="Others">Others</option>
+                </select>
+
+                <!-- Hidden field for custom shop name -->
+                <div id="otherShopDiv" style="display:none; margin-top:10px;">
+                    <label for="OtherShopName">Enter Shop Name:</label>
+                    <input type="text" id="OtherShopName" name="OtherShopName" class="form-control" placeholder="Enter other shop name">
+                </div>
+                <br>
+
+
+                <!-- Date Picker for Month and Year -->
+                <label>Select Date:</label>
+                <input type="date" class="date-picker" name="datePicker" required><br><br>
+
+                <!-- Hidden fields for month and year -->
+                <input type="hidden" class="month" name="month">
+                <input type="hidden" class="year" name="year">
+
+                <label for="file">Upload PDF:</label>
+                <input type="file" id="file" name="file" required><br><br>
+
+                <input type="submit" value="Upload">
+            </form>
+        </div>
+        <!-- Upload Sheet Section -->
+            <div id="upload-sheet-section" style="display: none;">
+              <h2>Upload a Sheet (CSV/XLSX/XLS/TSV)</h2>
+              <form id="upload-sheet-form" enctype="multipart/form-data">
+                <p class="mb-2">
+                  Expected columns: <code>Shop</code>, <code>Date</code>, <code>Items</code>, <code>quantity</code>,
+                  <code>price (€)</code> (or <code>price</code>), optional <code>price per kg</code>, and optional <code>Total_price</code>.
+                </p>
+                <input type="file" id="sheetFile" name="file" accept=".csv,.xlsx,.xls,.tsv" required />
+                <input type="submit" value="Upload Sheet">
+              </form>
+
+              <!-- Result message area -->
+              <div id="sheet-upload-message" class="message" style="margin-top:10px;"></div>
+            </div>
+
+        <!-- View Invoices Section -->
+        <div id="view-section" style="display: none;">
+            <h2>View Invoices</h2>
+            <form id="view-form" class="form-submit">
+                <label for="datePickerView">Select Date:</label>
+                <input type="date" id="datePickerView" class="date-picker" name="datePicker" required><br><br>
+
+
+                <!-- Hidden fields -->
+                <input type="hidden" class="month-field" name="month">
+                <input type="hidden" class="year-field" name="year">
+
+                <!-- Button with ID -->
+                 <button type="button" class="custom-btn" id="view-data-btn">View Data</button>
+            </form>
+            <hr>
+
+                <!-- View by Month + Year -->
+            <form id="view-by-month-form" action="{{ url_for('main.view_invoices_by_month') }}" method="get">
+                <label for="year">Select Year:</label>
+                <select id="year" name="year" class="form-control" required>
+                    <option value="">Loading years...</option>
+                </select><br>
+
+                <label for="month">Select Month:</label>
+                <select id="month" name="month" class="form-control" required disabled>
+                    <option value="">Select a year first</option>
+                </select><br>
+
+                <button type="submit" class="custom-btn">View All Invoices</button>
+            </form>
+
+        </div>
+        <!-- Modal -->
+<div class="modal fade" id="billExistsModal" tabindex="-1" role="dialog" aria-labelledby="billExistsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="billExistsModalLabel">Bill Already Exists</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body text-center">
+        <p id="bill-exists-message" class="text-danger font-weight-bold"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Sheet Upload Result Modal -->
+<div class="modal fade" id="sheetResultModal" tabindex="-1" role="dialog" aria-labelledby="sheetResultLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="sheetResultLabel">Sheet Upload Result</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>
+      </div>
+      <div class="modal-body">
+        <div id="sheet-result-body"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="go-view-btn" class="btn btn-primary" style="display:none;">Open Latest Bill</button>
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+        <!-- No Records Modal -->
+       <div class="modal fade" id="noRecordsModal" tabindex="-1" role="dialog" aria-labelledby="noRecordsModalLabel" aria-hidden="true">
+                  <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                      <div class="modal-body text-center">
+                        <p id="no-records-message" class="font-weight-bold text-danger"></p>
+                        <button type="button" class="btn btn-secondary mt-2" data-dismiss="modal" >OK</button>
+                      </div>
+                    </div>
+                  </div>
+       </div>
+
+    <!----
+        <div id="view-balance-section" style="display: none;">
+            <h2>View Balances</h2>
+            <button id="view-balance-btn" onclick="location.href='{{ url_for('main.view_balances') }}'">View Balances</button>
+        </div>
+        <br>
+        <a href="{{ url_for('user.logout') }}">Logout</a>
+        !---->
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script>
+        // Toggle between upload and view sections
+        document.getElementById("upload-btn").addEventListener("click", function() {
+            document.getElementById("upload-section").style.display = "block";
+            document.getElementById("view-section").style.display = "none";
+        });
+
+        document.getElementById("view-btn").addEventListener("click", function() {
+            document.getElementById("upload-section").style.display = "none";
+            document.getElementById("view-section").style.display = "block";
+        });
+        document.getElementById("view-balance-btn").addEventListener("click", function() {
+            document.getElementById("view-balance-section").style.display = "block";
+        });
+
+
+        // Feature 4: Check if the filename already exists
+        document.getElementById("check-filename-btn").addEventListener("click", function() {
+            const filename = document.getElementById("filename").value;
+            if (!filename) {
+                alert("Please enter a filename.");
+                return;
+            }
+
+            fetch("/check_filename", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                body: `filename=${filename}`,
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messageDiv = document.getElementById("filename-check-message");
+                if (data.exists) {
+                    messageDiv.textContent = "Filename already exists.";
+                    messageDiv.className = "message error";
+                } else {
+                    messageDiv.textContent = "Filename is available.";
+                    messageDiv.className = "message success";
+                }
+            })
+            .catch(error => {
+                console.error("Error checking filename:", error);
+            });
+        });
+
+        // Feature 5: Fetch month and year from the calendar view
+
+        function handleDateChange(event) {
+        const datePicker = event.target; // Get the element that triggered the event
+        const selectedDate = new Date(datePicker.value);
+
+        if (!selectedDate || isNaN(selectedDate)) {
+            alert("Please select a valid date.");
+            return;
+        }
+
+        const month = selectedDate.toLocaleString('default', { month: 'long' }).toLowerCase();
+        const year = selectedDate.getFullYear();
+
+        // Find corresponding hidden fields in the same form
+        const form = datePicker.closest("form");
+        if (form) {
+            const monthField = form.querySelector(".month, .month-field");
+            const yearField = form.querySelector(".year, .year-field");
+
+            if (monthField) monthField.value = month;
+            if (yearField) yearField.value = year;
+
+            console.log(`Updated Form: ${form.id} - Month: ${month}, Year: ${year}`);
+        }
+        }
+
+    function handleFormSubmit(event) {
+        const form = event.target;
+        const filename = form.querySelector(".filename-field")?.value;
+        const NameOfTheShop = form.querySelector(".shop-field")?.value;
+        const month = form.querySelector(".month-field")?.value;
+        const year = form.querySelector(".year-field")?.value;
+
+        if (!month || !year) {
+            alert("Please select a date before submitting.");
+            event.preventDefault(); // Stop form submission
+            return;
+        }
+
+        console.log(`Form Submitted: ${form.id}`, { filename, NameOfTheShop, month, year });
+    }
+
+    // Attach event listeners dynamically
+    document.querySelectorAll(".date-picker").forEach(datePicker => {
+        datePicker.addEventListener("change", handleDateChange);
+    });
+
+    document.querySelectorAll(".form-submit").forEach(form => {
+        form.addEventListener("submit", handleFormSubmit);
+    });
+     //Feature: No data found
+        document.getElementById("view-data-btn").addEventListener("click", function () {
+        const date = document.getElementById("datePickerView").value;
+        if (!date) {
+            alert("Please select a date.");
+        return;
+        }
+        fetch(`/view_data_by_date?date=${encodeURIComponent(date)}`)
+    .then(async response => {
+        const contentType = response.headers.get("content-type");
+
+        if (contentType && contentType.includes("application/json")) {
+            const data = await response.json();
+
+            if (data.warning) {
+                document.getElementById("no-records-message").textContent = data.warning;
+                $('#noRecordsModal').modal('show'); //  only shows modal
+            }
+        } else {
+            // This means it's an HTML redirect (likely to /view), so navigate
+            window.location.href = "/view";
+        }
+    })
+    .catch(error => {
+        console.error("Error:", error);
+        alert("Something went wrong while fetching data.");
+    });
+    });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const yearSelect = document.getElementById('year');
+            const monthSelect = document.getElementById('month');
+
+            // Fetch and populate year dropdown
+            fetch('/get_invoice_years')
+                .then(res => res.json())
+                .then(data => {
+                    yearSelect.innerHTML = '<option value="">Select Year</option>';
+                    data.years.forEach(year => {
+                        const opt = document.createElement('option');
+                        opt.value = year;
+                        opt.textContent = year;
+                        yearSelect.appendChild(opt);
+                    });
+                })
+                .catch(err => {
+                    console.error('Error fetching years:', err);
+                });
+
+            // When year is selected, fetch months
+            yearSelect.addEventListener('change', function () {
+                const selectedYear = this.value;
+                if (!selectedYear) return;
+
+                fetch(`/get_invoice_months/${selectedYear}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        monthSelect.innerHTML = '';
+                        if (data.months.length > 0) {
+                            monthSelect.disabled = false;
+                            monthSelect.innerHTML = '<option value="">Select Month</option>';
+                            data.months.forEach(month => {
+                                const opt = document.createElement('option');
+                                opt.value = month;
+                                opt.textContent = month.charAt(0).toUpperCase() + month.slice(1);
+                                monthSelect.appendChild(opt);
+                            });
+                        } else {
+                            monthSelect.innerHTML = '<option>No months available</option>';
+                            monthSelect.disabled = true;
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error fetching months:', err);
+                        monthSelect.innerHTML = '<option>Error loading months</option>';
+                        monthSelect.disabled = true;
+                    });
+            });
+        });
+
+    // Feature: Bill already exist
+    document.getElementById("upload-form").addEventListener("submit", function(event) {
+    event.preventDefault();  // Prevent default form submission
+
+    const form = event.target;
+    const formData = new FormData(form); // properly initialized
+
+    fetch("/upload", {
+        method: "POST",
+        body: formData
+    })
+    .then(async response => {
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+            const data = await response.json();
+            if (data.Bill_exists) {
+                document.getElementById("bill-exists-message").textContent = data.warning;
+                $('#billExistsModal').modal('show');
+             } else if (data.error) {
+            //  error handling block
+            alert(`Upload failed: ${data.error}\nDetails: ${data.details || 'N/A'}`);
+            } else if (data.success) {
+                alert("File uploaded successfully.");
+                window.location.href = "/view"; // or wherever
+            }
+        } else {
+            window.location.href = "/view"; // fallback if response is HTML
+        }
+    })
+    .catch(error => {
+        console.error("Upload error:", error);
+    });
+});
+
+  // Show "Upload Sheet" section
+  document.getElementById("upload-sheet-btn").addEventListener("click", function () {
+    document.getElementById("upload-section").style.display = "none";      // PDF
+    document.getElementById("view-section").style.display = "none";        // View
+    document.getElementById("upload-sheet-section").style.display = "block"; // SHEET
+  });
+
+  // Submit the sheet
+  document.getElementById("upload-sheet-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    const fileInput = document.getElementById("sheetFile");
+    if (!fileInput.files.length) {
+      alert("Please choose a file.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    fetch("/upload_sheet_invoice", {
+      method: "POST",
+      body: formData
+    })
+    .then(async (res) => {
+      const contentType = res.headers.get("content-type") || "";
+      const data = contentType.includes("application/json") ? await res.json() : null;
+
+      if (!res.ok) {
+        const msg = (data && (data.error || data.details)) || "Upload failed.";
+        document.getElementById("sheet-upload-message").textContent = msg;
+        document.getElementById("sheet-upload-message").className = "message error";
+        return;
+      }
+
+      // Success handling
+      const resultDiv = document.getElementById("sheet-result-body");
+      resultDiv.innerHTML = "";
+
+      if (data.inserted_bills && data.inserted_bills.length) {
+        const list = document.createElement("ul");
+        data.inserted_bills.forEach(b => {
+          const li = document.createElement("li");
+          li.textContent = `${b.billId} — ${b.shop} — ${b.date} — total €${b.total}`;
+          list.appendChild(li);
+        });
+        const h = document.createElement("h6"); h.textContent = "Inserted Bills:";
+        resultDiv.appendChild(h);
+        resultDiv.appendChild(list);
+      }
+
+      if (data.skipped_duplicates && data.skipped_duplicates.length) {
+        const list2 = document.createElement("ul");
+        data.skipped_duplicates.forEach(s => {
+          const li = document.createElement("li");
+          li.textContent = `${s.shop} — ${s.date} (duplicate of ${s.existing_billId})`;
+          list2.appendChild(li);
+        });
+        const h2 = document.createElement("h6"); h2.textContent = "Skipped (duplicates):";
+        resultDiv.appendChild(h2);
+        resultDiv.appendChild(list2);
+      }
+
+      // If backend gave a redirect, show a button to go there
+      const goBtn = document.getElementById("go-view-btn");
+      if (data.redirect) {
+        goBtn.style.display = "inline-block";
+        goBtn.onclick = () => window.location.href = data.redirect;
+      } else {
+        goBtn.style.display = "none";
+      }
+
+      $('#sheetResultModal').modal('show');
+    })
+    .catch((err) => {
+      console.error(err);
+      document.getElementById("sheet-upload-message").textContent = "Network error.";
+      document.getElementById("sheet-upload-message").className = "message error";
+    });
+  });
+
+
+
+</script>
+</body>
+</html>

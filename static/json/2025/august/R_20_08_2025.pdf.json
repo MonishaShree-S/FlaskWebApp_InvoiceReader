@@ -1,0 +1,54 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "7316",
+  "totalSum": 13.39,
+  "items": [
+    {
+      "item": "FINESSE",
+      "quantity": 1,
+      "price": 1.59,
+      "pricePerKg": null
+    },
+    {
+      "item": "Frischerabatt",
+      "quantity": 1,
+      "price": -0.48,
+      "pricePerKg": null
+    },
+    {
+      "item": "HA-SCHENKEL",
+      "quantity": 1,
+      "price": 5.13,
+      "pricePerKg": null
+    },
+    {
+      "item": "PUTENBRUST GEGR.",
+      "quantity": 1,
+      "price": 1.59,
+      "pricePerKg": null
+    },
+    {
+      "item": "VOLLKORNTORTILLA",
+      "quantity": 2.0,
+      "price": 2.58,
+      "pricePerKg": 1.29
+    },
+    {
+      "item": "EIER BH M-L",
+      "quantity": 1,
+      "price": 1.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "JA! H-MILCH 1,5%",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    }
+  ],
+  "date": "20.08.2025",
+  "billId": "R_20_08_2025.pdf",
+  "month": "august",
+  "year": "2025"
+}

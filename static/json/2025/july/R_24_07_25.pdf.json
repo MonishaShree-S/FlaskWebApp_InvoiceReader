@@ -1,0 +1,28 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "5143",
+  "totalSum": 3.18,
+  "items": [
+    {
+      "item": "H-MILCH GVO-FREI",
+      "quantity": 2.0,
+      "unit_price": 1.09,
+      "price": 2.18
+    },
+    {
+      "item": "MIWA CLASSIC",
+      "quantity": 1,
+      "price": 0.75
+    },
+    {
+      "item": "PFAND 0,25 EURO",
+      "quantity": 1,
+      "price": 0.25
+    }
+  ],
+  "date": "24.07.2025",
+  "billId": "R_24_07_25.pdf",
+  "month": "july",
+  "year": "2025"
+}

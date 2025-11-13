@@ -1,0 +1,54 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "2665",
+  "totalSum": 16.72,
+  "items": [
+    {
+      "item": "HA-SCHENKEL",
+      "quantity": 1,
+      "price": 5.48,
+      "pricePerKg": null
+    },
+    {
+      "item": "ZWIEBEL ROT",
+      "quantity": 1,
+      "price": 0.89,
+      "pricePerKg": null
+    },
+    {
+      "item": "TOMATE RISPE",
+      "quantity": 1,
+      "price": 1.49,
+      "pricePerKg": null
+    },
+    {
+      "item": "KR. PETERSILIE",
+      "quantity": 1,
+      "price": 0.89,
+      "pricePerKg": null
+    },
+    {
+      "item": "NATURJOGHURT 3,5",
+      "quantity": 1,
+      "price": 0.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "ROTK.DORNF.HT",
+      "quantity": 1,
+      "price": 2.99,
+      "pricePerKg": null
+    },
+    {
+      "item": "MEDE. TINTO LIE.",
+      "quantity": 1,
+      "price": 3.99,
+      "pricePerKg": null
+    }
+  ],
+  "date": "09.08.2025",
+  "billId": "R_09_08.pdf",
+  "month": "august",
+  "year": "2025"
+}

@@ -1,0 +1,40 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "9387",
+  "totalSum": 4.32,
+  "items": [
+    {
+      "item": "BANANE BANDEROLE",
+      "quantity": 0.654,
+      "unit_price": 1.29,
+      "price": 0.84
+    },
+    {
+      "item": "BANANE BANDEROLE",
+      "quantity": 0.898,
+      "unit_price": 1.29,
+      "price": 1.16
+    },
+    {
+      "item": "INST.NUDELGER.HU",
+      "quantity": 2.0,
+      "unit_price": 0.69,
+      "price": 1.38
+    },
+    {
+      "item": "INST.NUD.GEMUESE",
+      "quantity": 1,
+      "price": 0.69
+    },
+    {
+      "item": "TAFELSALZ",
+      "quantity": 1,
+      "price": 0.25
+    }
+  ],
+  "date": "09.04.2025",
+  "billId": "R_09042025_PMB.pdf",
+  "month": "",
+  "year": ""
+}

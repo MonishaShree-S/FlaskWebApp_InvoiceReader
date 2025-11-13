@@ -1,0 +1,30 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "4781",
+  "totalSum": 5.31,
+  "items": [
+    {
+      "item": "INGWER BIO",
+      "quantity": 0.32,
+      "price": 2.53,
+      "pricePerKg": 7.9
+    },
+    {
+      "item": "KNOBLAUCH BIO",
+      "quantity": 1,
+      "price": 1.29,
+      "pricePerKg": null
+    },
+    {
+      "item": "RAPSOEL JA!",
+      "quantity": 1,
+      "price": 1.49,
+      "pricePerKg": null
+    }
+  ],
+  "date": "14.08.2025",
+  "billId": "R_14_08_2025.pdf",
+  "month": "august",
+  "year": "2025"
+}

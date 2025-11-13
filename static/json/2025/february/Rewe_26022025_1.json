@@ -1,0 +1,32 @@
+{
+  "shopName": "REWE",
+  "address": "Harderstr. 24 85049 Ingolstadt",
+  "invoiceNumber": "6968",
+  "totalSum": 3.82,
+  "items": [
+    {
+      "item": "3ER SW",
+      "quantity": 1,
+      "price": 2.19
+    },
+    {
+      "item": "CRUNCHIPS WEST.",
+      "quantity": 1,
+      "price": 0.99
+    },
+    {
+      "item": "COOKIES DOUBLE",
+      "quantity": 1,
+      "price": 1.39
+    },
+    {
+      "item": "LEERGUT EINWEG -",
+      "quantity": 1,
+      "price": 0.75
+    }
+  ],
+  "date": "26.02.2025",
+  "billId": "Rewe_26022025_1",
+  "month": "february",
+  "year": "2025"
+}

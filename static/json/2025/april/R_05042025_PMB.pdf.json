@@ -1,0 +1,52 @@
+{
+  "shopName": "REWE",
+  "address": "Peterson Warenhandels GmbH&Co.KG, Sch\u00f6nwalder Stra\u00dfe 32 13585 Berlin/Spandau",
+  "invoiceNumber": "7952",
+  "totalSum": 10.33,
+  "items": [
+    {
+      "item": "DATTELN ENTSTEIN",
+      "quantity": 1,
+      "price": 1.19
+    },
+    {
+      "item": "DIE FEINEN KART.",
+      "quantity": 1,
+      "price": 1.59
+    },
+    {
+      "item": "ZWIEBELN",
+      "quantity": 1,
+      "price": 1.89
+    },
+    {
+      "item": "MINZE",
+      "quantity": 1,
+      "price": 0.89
+    },
+    {
+      "item": "KORIANDER",
+      "quantity": 1,
+      "price": 0.89
+    },
+    {
+      "item": "JOGHURT GRIECH.",
+      "quantity": 1,
+      "price": 2.19
+    },
+    {
+      "item": "SONNENBLUMENOEL",
+      "quantity": 1,
+      "price": 1.49
+    },
+    {
+      "item": "KL.PAPIERTASCHE",
+      "quantity": 1,
+      "price": 0.2
+    }
+  ],
+  "date": "05.04.2025",
+  "billId": "R_05042025_PMB.pdf",
+  "month": "april",
+  "year": "2025"
+}
