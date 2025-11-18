@@ -169,8 +169,12 @@ def upload_file():
                         return f
                     except Exception:
                         return None
+
+                def _clean_str(v):
+                    return None if v in (None, "", "None") else str(v)
+
                 try:
-                    for index, row in df.iterrows():
+                    '''for index, row in df.iterrows():
                         new_entry = modelShop(
                             userid=int(userid),
                             billId=filename_for_billid,
@@ -186,8 +190,44 @@ def upload_file():
                             invoiceNumber=row['invoiceNumber'],
                             totalSum=row['totalSum'],
                             date=row['date']
-                        )
-                        db_session.add(new_entry)
+                        )'''
+                        #db_session.add(new_entry)
+
+
+
+                    for index, row in df.iterrows():
+                            new_entry = modelShop(
+                                userid=int(userid),
+                                billId=_clean_str(filename_for_billid),
+                                month=_clean_str(row['month']),
+                                year=int(row['year']),
+                                item=_clean_str(row['item']),
+
+                                # quantities
+                                quantity=_clean_float(row.get('quantity')),
+                                weight_quantity=_clean_float(row.get('weight_quantity')),
+
+                                # legacy line price (what you already had)
+                                price=_clean_float(row.get('price')),
+
+                                # old price-per-kg still in the DF (optional now)
+                                #pricePerKg=_clean_float(row.get('pricePerKg')),
+
+                                # 🔹 NEW unified fields
+                                unit_price=_clean_float(row.get('unit_price')),  # €/piece or €/kg
+                                unit_type=_clean_str(row.get('unit_type')),  # "piece", "kg", ...
+                                total_price=_clean_float(row.get('total_price')),  # line total
+                                unit_price_pricePerKg=_clean_float(row.get('unit_price_pricePerKg')),
+                                # renamed column in DB
+
+                                # meta
+                                shopName=_clean_str(row['shopName']),
+                                address=_clean_str(row['address']),
+                                invoiceNumber=_clean_str(row['invoiceNumber']),
+                                totalSum=_clean_float(row.get('totalSum')),
+                                date=row['date']  # already a date object or iso string
+                            )
+                            db_session.add(new_entry)
 
                     db_session.commit()
                     logger.info(f"File metadata for {filename_for_billid} recorded successfully.")
@@ -300,7 +340,7 @@ def view_data():
                         'quantity': record.quantity,
                         'weight_quantity': record.weight_quantity,
                         'price': record.price,
-                        'pricePerKg': getattr(record, 'pricePerKg', None),
+                        'unit_price_pricePerKg': record.unit_price_pricePerKg,
                         'shared_with': ''  # default empty if not split
                     }
                     for record in records
