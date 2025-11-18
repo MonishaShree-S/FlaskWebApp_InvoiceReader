@@ -69,7 +69,7 @@
                             <th>Quantity</th>
                             <th>Weight (kg)</th>
                             <th>Price</th>
-                            <th>Price/kg</th>
+                            <th>unit_price_pricePerKg</th>
                             {% if items_data and items_data[0].shared_with %}
                                 <th>Shared With</th>
                             {% endif %}
@@ -82,7 +82,7 @@
                                 <td>{{ row.quantity }}</td>
                                 <td>{{ row.weight_quantity if row.weight_quantity is not none else '-' }}</td>
                                 <td>{{ row.price }}</td>
-                                <td>{% if row.pricePerKg %}{{ row.pricePerKg }}{% else %}-{% endif %}</td>
+                                <td>{% if row.unit_price_pricePerKg %}{{ row.unit_price_pricePerKg }}{% else %}-{% endif %}</td>
                                 {% if row.shared_with %}
                                     <td>{{ row.shared_with }}</td>
                                 {% elif items_data and items_data[0].shared_with %}

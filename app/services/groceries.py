@@ -1024,7 +1024,7 @@ class ImageScanner:
 
         return normalized
 
-    def create_data_frame(self):
+    def create_data_frame__(self):
         logger.info("++++++: inside create_df")
         shop_name = self.get_shop_name()
         address = self.get_Address()
@@ -1047,6 +1047,14 @@ class ImageScanner:
         items = self._normalize_item_prices(items)
         #items = [dict(x) for x in items if isinstance(x, dict)]
         items = [row for row in items if isinstance(row, dict)]
+
+        def _f(x):
+            if x in (None, "", "None"):
+                return None
+            try:
+                return float(str(x).replace(",", "."))
+            except Exception:
+                return None
         # --- Harmonize quantity vs weight_quantity, and ensure None instead of missing ---
         for row in items:
             # ensure keys exist
@@ -1137,3 +1145,185 @@ class ImageScanner:
         logger.debug("Extracted DataFrame:\n%s", df)
         return df
 
+    def create_data_frame(self):
+        logger.info("++++++: inside create_df")
+        shop_name = self.get_shop_name()
+        address = self.get_Address()
+        invoice_number = self.get_invoice()
+
+        try:
+            items = self.get_groceries_bill() or []
+        except Exception as e:
+            logger.info("Error in calling get_groceries_bill(): %s", e)
+            items = []
+
+        logger.info("++++++: inside create_df %s", items)
+
+        # 🔧 normalize once, no parser changes required
+        items = self._normalize_item_prices(items)
+        items = [row for row in items if isinstance(row, dict)]
+
+        # ---------- unified item normalization (unit_price + unit_type) ----------
+        def _f(x):
+            if x in (None, "", "None"):
+                return None
+            try:
+                return float(str(x).replace(",", "."))
+            except Exception:
+                return None
+
+        normalized = []
+        for row in items:
+            item_name = row.get("item")
+
+            qty = _f(row.get("quantity"))
+            wqty = _f(row.get("weight_quantity"))
+            price = _f(row.get("price"))  # line total (€)
+            ppk = _f(row.get("pricePerKg"))  # €/kg if present
+            up = _f(row.get("unit_price"))  # €/piece from "Stk x ..." pattern
+
+            is_weight = (ppk not in (None, 0)) or (wqty is not None)
+
+            unified = {
+                "item": item_name,
+
+                # unified cols
+                "quantity": None,
+                "unit_price": None,
+                "unit_type": None,
+                "total_price": None,
+
+                # legacy/back-compat cols
+                "weight_quantity": wqty,
+                "pricePerKg": ppk,
+                "price": price,
+                "unit_price_pricePerKg": None,  # maps to your renamed column in SQL Server
+            }
+
+            if is_weight:
+                # weighted item: €/kg + kg + line total
+                unified["quantity"] = wqty if wqty is not None else qty
+                unified["unit_price"] = ppk  # €/kg
+                unified["unit_type"] = "kg"
+                unified["total_price"] = price
+                unified["unit_price_pricePerKg"] = ppk
+            else:
+                # piece-based item
+                qty_piece = qty if qty is not None else 1.0
+                unit_price_piece = up if up is not None else price
+
+                unified["quantity"] = qty_piece
+                unified["unit_price"] = unit_price_piece
+                unified["unit_type"] = "piece"
+                unified["total_price"] = price
+                unified["weight_quantity"] = None
+                unified["unit_price_pricePerKg"] = None
+
+            normalized.append(unified)
+
+        items = normalized
+        # ------------------------------------------------------------------------
+
+        total_sum = self.get_Total_amount()
+
+        # ---- robust date handling ----
+        raw_text = getattr(self, "formatted_text", None) or getattr(self, "ocr_text", None)
+        date_str = (
+                self.parse_date_from_text(raw_text)
+                or self.parse_date_from_billname(self.bill_name)
+                or datetime.now().strftime("%Y-%m-%d")
+        )
+
+        bill_id = self.bill_name
+        month = str(self.month).strip().lower() if self.month is not None else ""
+        year = str(self.year).strip() if self.year is not None else date_str[:4]
+
+        chosen_date, mismatch, ocr_date = self.choose_bill_date(raw_text)
+        if not chosen_date:
+            chosen_date = datetime.utcnow().date()
+        chosen_date_iso = chosen_date.isoformat()
+
+        # JSON payload (use normalized items so unit_price/unit_type are stored too)
+        result_dict = {
+            "shopName": shop_name,
+            "address": address,
+            "invoiceNumber": invoice_number,
+            "totalSum": total_sum,
+            "items": items,
+            "date": chosen_date_iso,
+            "billId": bill_id,
+            "month": month,
+            "year": year,
+        }
+
+        base_directory = "static/json"
+        json_folder = os.path.join(base_directory, year or "unknown", month or "unknown")
+        os.makedirs(json_folder, exist_ok=True)
+        json_filename = f"{bill_id}.json" if bill_id else f"bill_{date_str}.json"
+        with open(os.path.join(json_folder, json_filename), "w", encoding="utf-8") as f:
+            json.dump(result_dict, f, indent=2, ensure_ascii=False)
+
+        # ---------- DataFrame ----------
+        df = pd.DataFrame(
+            items,
+            columns=[
+                "item",
+                "quantity",
+                "unit_price",
+                "unit_type",
+                "total_price",
+                "weight_quantity",
+                "unit_price_pricePerKg",
+                "pricePerKg",
+                "price",
+            ],
+        )
+
+        df["shopName"] = shop_name
+        df["address"] = address
+        df["invoiceNumber"] = invoice_number
+
+        # total_sum might be "5,23" → normalize then to_numeric
+        if isinstance(total_sum, str):
+            total_sum_clean = total_sum.replace(",", ".")
+        else:
+            total_sum_clean = total_sum
+        df["totalSum"] = pd.to_numeric(total_sum_clean, errors="coerce")
+
+        df["date"] = chosen_date  # date object is fine for SQLAlchemy Date
+        df["month"] = month
+        df["year"] = year
+        df["billId"] = bill_id
+
+        # numeric coercion
+        for c in [
+            "quantity",
+            "unit_price",
+            "total_price",
+            "weight_quantity",
+            "unit_price_pricePerKg",
+            "pricePerKg",
+            "price",
+            "totalSum",
+        ]:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce")
+
+        # ensure None instead of NaN so SQL gets NULL
+        for c in [
+            "quantity",
+            "unit_price",
+            "total_price",
+            "weight_quantity",
+            "unit_price_pricePerKg",
+            "pricePerKg",
+            "price",
+            "totalSum",
+        ]:
+            if c in df.columns:
+                df[c] = df[c].astype(object)
+                df[c] = df[c].where(pd.notnull(df[c]), None)
+
+        logger.info("DataFrame created successfully")
+        logger.debug("Extracted DataFrame:\n%s", df)
+        return df
