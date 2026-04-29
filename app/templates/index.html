@@ -82,6 +82,7 @@
         <div class="options">
             <h2>What would you like to do?</h2>
             <button id="upload-btn">Upload a File</button>
+            <button id="upload-image-btn">Upload Image</button>
             <button id="upload-sheet-btn">Upload Sheet</button>
             <button id="view-btn">View Invoices</button>
             <button id="view-balance-btn" onclick="location.href='{{ url_for('main.view_balances') }}'">View Balances</button>
@@ -132,6 +133,40 @@
                 <input type="submit" value="Upload">
             </form>
         </div>
+        <!-- Upload Image Section -->
+        <!-- Upload Image Section -->
+        <div id="upload-image-section" style="display: none;">
+        <h2>Upload Bill Image</h2>
+          <form id="upload-image-form" action="{{ url_for('main.upload_image_bill') }}" method="post" enctype="multipart/form-data">
+            <label for="filename_img">Filename:</label>
+            <input type="text" id="filename_img" name="filename" required>
+
+            <label for="NameOfTheShop_img">Shop Name:</label>
+            <select id="NameOfTheShop_img" name="NameOfTheShop" class="form-control" required>
+              <option value="">Select Shop</option>
+              <option value="Rewe">Rewe</option>
+              <option value="Kaufland">Kaufland</option>
+              <option value="DM">DM</option>
+              <option value="Rossmann">Rossmann</option>
+              <option value="Edeka">Edeka</option>
+              <option value="Lidl">Lidl</option>
+              <option value="EuroShop">EuroShop</option>
+              <option value="Others">Others</option>
+            </select>
+
+            <label>Select Date:</label>
+            <input type="date" class="date-picker" name="datePicker" required>
+
+            <input type="hidden" class="month" name="month">
+            <input type="hidden" class="year" name="year">
+
+            <label for="file_img">Upload Image:</label>
+            <input type="file" id="file_img" name="file" accept=".png,.jpg,.jpeg,.webp" required>
+
+            <input type="submit" value="Upload Image">
+          </form>
+        </div>
+
         <!-- Upload Sheet Section -->
             <div id="upload-sheet-section" style="display: none;">
               <h2>Upload a Sheet (CSV/XLSX/XLS/TSV)</h2>
@@ -252,6 +287,10 @@
             document.getElementById("view-section").style.display = "none";
         });
 
+        document.getElementById("upload-image-btn").addEventListener("click", function() {
+            document.getElementById("upload-section").style.display = "block";
+            document.getElementById("view-section").style.display = "none";
+        });
         document.getElementById("view-btn").addEventListener("click", function() {
             document.getElementById("upload-section").style.display = "none";
             document.getElementById("view-section").style.display = "block";
@@ -536,9 +575,89 @@
       document.getElementById("sheet-upload-message").className = "message error";
     });
   });
+</script>
+<!-- ✅ Added working logic for Upload Image (toggle + fetch submit) -->
+<script>
+(function () {
+  // Toggle: show image upload section
+  var imgBtn = document.getElementById("upload-image-btn");
+  if (imgBtn) {
+    imgBtn.addEventListener("click", function () {
+      var pdf = document.getElementById("upload-section");
+      var view = document.getElementById("view-section");
+      var sheet = document.getElementById("upload-sheet-section");
+      var img = document.getElementById("upload-image-section");
+      if (pdf) pdf.style.display = "none";
+      if (view) view.style.display = "none";
+      if (sheet) sheet.style.display = "none";
+      if (img) img.style.display = "block";
+    });
+  }
 
+  // Hide image section when switching to other sections (keeps your existing UX)
+  var uploadBtn = document.getElementById("upload-btn");
+  if (uploadBtn) {
+    uploadBtn.addEventListener("click", function () {
+      var img = document.getElementById("upload-image-section");
+      if (img) img.style.display = "none";
+    });
+  }
 
+  var viewBtn = document.getElementById("view-btn");
+  if (viewBtn) {
+    viewBtn.addEventListener("click", function () {
+      var img = document.getElementById("upload-image-section");
+      if (img) img.style.display = "none";
+    });
+  }
 
+  var sheetBtn = document.getElementById("upload-sheet-btn");
+  if (sheetBtn) {
+    sheetBtn.addEventListener("click", function () {
+      var img = document.getElementById("upload-image-section");
+      if (img) img.style.display = "none";
+    });
+  }
+
+  // Fetch submit for image upload (handles JSON duplicate + redirects)
+  var imgForm = document.getElementById("upload-image-form");
+  if (imgForm) {
+    imgForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+
+      var formData = new FormData(imgForm);
+
+      try {
+        var response = await fetch(imgForm.action, { method: "POST", body: formData });
+        var contentType = response.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+          var result = await response.json();
+
+          if (result.Bill_exists) {
+            alert(result.warning || "Bill already exists.");
+            return;
+          }
+          if (result.error) {
+            alert("Upload failed: " + result.error + (result.details ? ("\nDetails: " + result.details) : ""));
+            return;
+          }
+        }
+
+        if (response.redirected) {
+          window.location.href = response.url;
+          return;
+        }
+
+        // fallback
+        window.location.reload();
+      } catch (err) {
+        console.error("Upload image failed:", err);
+        alert("Upload image failed. Check console/logs.");
+      }
+    });
+  }
+})();
 </script>
 </body>
 </html>

@@ -19,8 +19,9 @@ import pandas as pd
 from app.services.groceries import ImageScanner
 from app.models.models import Users, models, SplitInvoiceUser, get_session, SplitInvoiceDetail, Settlements, \
     DebtSettlements, DebtSettlementsBills,DebtSummary,SettlementLog
-from app.utils.dataHelpers import convert_date, create_dataframe
+from app.utils.dataHelpers import convert_date, create_dataframe, receipt_json_to_df
 from app.utils.ReadPdf import pdf_to_jpg, extract_text_from_pdf
+from app.utils.openai_receipt_parser import parse_receipt_image_to_json
 from sqlalchemy.orm import aliased
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -32,6 +33,10 @@ main_bp = Blueprint('main', __name__)
 logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {'pdf'}
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+
+def allowed_image(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 def allowed_file(filename):
@@ -193,10 +198,16 @@ def upload_file():
                         )'''
                         #db_session.add(new_entry)
 
-
+                    logger.info(f"shopname from form/session: {shopname}")
+                    #logger.info(f"row shopName from parser: {row.get('shopName')}")
 
                     for index, row in df.iterrows():
-                            new_entry = modelShop(
+
+                        address_val = _clean_str(row.get('address'))
+
+                        if address_val:
+                            address_val = address_val[:120]
+                        new_entry = modelShop(
                                 userid=int(userid),
                                 billId=_clean_str(filename_for_billid),
                                 month=_clean_str(row['month']),
@@ -221,13 +232,15 @@ def upload_file():
                                 # renamed column in DB
 
                                 # meta
-                                shopName=_clean_str(row['shopName']),
-                                address=_clean_str(row['address']),
+                                #shopName=_clean_str(row['shopName']),
+                                shopName=_clean_str(shopname),
+                                address=address_val,
+                                #address=_clean_str(row['address']),
                                 invoiceNumber=_clean_str(row['invoiceNumber']),
                                 totalSum=_clean_float(row.get('totalSum')),
                                 date=row['date']  # already a date object or iso string
                             )
-                            db_session.add(new_entry)
+                        db_session.add(new_entry)
 
                     db_session.commit()
                     logger.info(f"File metadata for {filename_for_billid} recorded successfully.")
@@ -241,6 +254,137 @@ def upload_file():
     except Exception as e:
         logger.error(f"Error during file upload: {str(e)}")
         return jsonify({'error': 'An internal error occurred.', 'details': str(e)}), 500
+
+@main_bp.route('/upload_image_bill', methods=['POST'])
+@login_required
+def upload_image_bill():
+    try:
+        filename = request.form.get("filename")
+        filename_for_billid = filename
+
+        NameOfTheShop = request.form.get("NameOfTheShop")
+        month = (request.form.get("month") or "").lower()
+        year = request.form.get("year")
+        bill_date_str = request.form.get("datePicker")
+
+        if not filename_for_billid:
+            return jsonify({"error": "Missing filename"}), 400
+        if not bill_date_str:
+            return jsonify({"error": "Missing bill_date"}), 400
+        if not month:
+            return jsonify({"error": "Missing month"}), 400
+        if not year:
+            return jsonify({"error": "Missing year"}), 400
+        if not NameOfTheShop:
+            return jsonify({"error": "Missing ShopName"}), 400
+
+        # file present?
+        if "file" not in request.files:
+            return jsonify({"error": "No file part in the request."}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No selected file."}), 400
+
+        if not allowed_image(file.filename):
+            return jsonify({"error": "File type not allowed. Only PNG/JPG/JPEG/WEBP."}), 400
+
+        # Save to uploads/<year>/<month> just like PDFs
+        year_month_directory = os.path.join(current_app.config["UPLOAD_FOLDER"], year, month)
+        os.makedirs(year_month_directory, exist_ok=True)
+
+        # preserve image extension
+        ext = file.filename.rsplit(".", 1)[1].lower()
+        stored_filename = secure_filename(f"{filename_for_billid}.{ext}")
+        image_path = os.path.join(year_month_directory, stored_filename)
+        file.save(image_path)
+
+        userid = request.form.get("userid") or fetch_user_id_from_session()
+        if not userid or not str(userid).isdigit():
+            return jsonify({"error": "User not authenticated or invalid session."}), 403
+
+        shopname = NameOfTheShop.lower()
+
+        modelShop = models.get("groceries")
+        if not modelShop:
+            return jsonify({"error": "groceries table is not available."}), 500
+
+        with get_session() as db_session:
+            # duplicate check: same billId like your PDF logic
+            existing_count = db_session.query(modelShop).filter_by(userid=userid, billId=filename_for_billid).count()
+            if existing_count > 0:
+                return jsonify({
+                    "warning": f"Bill ID {filename_for_billid} already exists",
+                    "Bill_exists": True
+                }), 200
+
+            # ---- 1) Vision → JSON
+            receipt_json = parse_receipt_image_to_json(image_path)
+
+            # ---- 2) JSON → DataFrame
+            df = receipt_json_to_df(
+                receipt_json,
+                month=month,
+                year=year,
+                shopname=shopname,
+                userid=int(userid),
+                bill_date_str=bill_date_str,
+                bill_id=filename_for_billid
+            )
+
+            if df.empty:
+                return jsonify({"error": "No items extracted from image."}), 400
+
+            # (reuse your cleaning helpers pattern)
+            def _clean_float(v):
+                if v is None:
+                    return None
+                try:
+                    if pd.isna(v):
+                        return None
+                except Exception:
+                    pass
+                try:
+                    f = float(v)
+                    if math.isnan(f) or math.isinf(f):
+                        return None
+                    return f
+                except Exception:
+                    return None
+
+            def _clean_str(v):
+                return None if v in (None, "", "None") else str(v)
+
+            # Insert like your PDF route insert-loop
+            for _, row in df.iterrows():
+                new_entry = modelShop(
+                    userid=int(userid),
+                    billId=_clean_str(filename_for_billid),
+                    month=_clean_str(row["month"]),
+                    year=int(row["year"]),
+                    item=_clean_str(row["item"]),
+                    quantity=_clean_float(row.get("quantity")),
+                    weight_quantity=_clean_float(row.get("weight_quantity")),
+                    price=_clean_float(row.get("price")),
+                    unit_price=_clean_float(row.get("unit_price")),
+                    unit_type=_clean_str(row.get("unit_type")),
+                    total_price=_clean_float(row.get("total_price")),
+                    unit_price_pricePerKg=_clean_float(row.get("unit_price_pricePerKg")),
+                    shopName=_clean_str(row["shopName"]),
+                    address=_clean_str(row.get("address")),
+                    invoiceNumber=_clean_str(row.get("invoiceNumber")),
+                    totalSum=_clean_float(row.get("totalSum")),
+                    date=row.get("date"),
+                )
+                db_session.add(new_entry)
+
+            db_session.commit()
+            session["billid"] = filename_for_billid
+            return redirect(url_for("main.view_data"))
+
+    except Exception as e:
+        current_app.logger.exception("Error during image upload")
+        return jsonify({"error": "An internal error occurred.", "details": str(e)}), 500
 
 @main_bp.route('/check_filename', methods=['POST'])
 @login_required
@@ -459,6 +603,9 @@ def view_data_by_month():
 def view_invoices_by_month():
     month = request.args.get('month')
     year = request.args.get('year')
+
+    # NEW -Sorting
+    sort_by = request.args.get('sort_by', 'date_desc')
     userid = fetch_user_id_from_session()
     bill_id=""
 
@@ -510,8 +657,27 @@ def view_invoices_by_month():
                 'pdf_url': pdf_url,
                 'paid_by': paid_by
             }
+        bills = list(bill_map.values())
 
-        return render_template('view_invoices_month.html', bills=list(bill_map.values()), month=month, year=year)
+        # SORTING
+        sort_by = request.args.get("sort_by", "date_desc")
+
+        if sort_by == "date_asc":
+            bills.sort(key=lambda x: x["date"] or "")
+
+        elif sort_by == "date_desc":
+            bills.sort(key=lambda x: x["date"] or "", reverse=True)
+
+        elif sort_by == "shop_asc":
+            bills.sort(key=lambda x: (x["shop"] or "").lower())
+
+        elif sort_by == "price_asc":
+            bills.sort(key=lambda x: float(x["total"] or 0))
+
+        elif sort_by == "price_desc":
+            bills.sort(key=lambda x: float(x["total"] or 0), reverse=True)
+
+        return render_template('view_invoices_month.html', bills=bills, month=month, year=year,selected_sort=sort_by)
 
 #def se@main_bp.route('/static/uploads/<path:filename>')
 #rve_uploaded_file(filename):
@@ -1109,6 +1275,417 @@ def reverse_settlement():
 
         db_session.commit()
         return jsonify({'success': True, 'message': 'Settlement reversed successfully.'})
+@main_bp.route("/analytics", methods=["GET"])
+@login_required
+def analytics_dashboard():
+    return render_template("analytics.html")
+from datetime import date
+from sqlalchemy import func
+# you already import func, datetime etc. in this file
+
+@main_bp.route("/api/analytics/overview", methods=["GET"])
+@login_required
+def analytics_overview():
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "not authenticated"}), 403
+
+    modelShop = models.get("groceries")
+
+    with get_session() as db_session:
+        # total spent (sum of all item prices)
+        total_spent = db_session.query(
+            func.coalesce(func.sum(modelShop.price), 0)
+        ).filter_by(userid=userid).scalar()
+
+        today = date.today()
+        this_year = today.year
+        this_month = today.strftime("%B").lower()  # matches how you store month
+
+        this_month_spent = db_session.query(
+            func.coalesce(func.sum(modelShop.price), 0)
+        ).filter_by(userid=userid, year=this_year, month=this_month).scalar()
+
+        bill_count = db_session.query(
+            func.count(func.distinct(modelShop.billId))
+        ).filter_by(userid=userid).scalar()
+
+        last_bill_date = db_session.query(
+            func.max(modelShop.date)
+        ).filter_by(userid=userid).scalar()
+
+        # top shop
+        shop_totals = db_session.query(
+            modelShop.shopName,
+            func.sum(modelShop.price).label("total")
+        ).filter_by(userid=userid).group_by(modelShop.shopName).order_by(
+            func.sum(modelShop.price).desc()
+        ).all()
+
+        top_shop = shop_totals[0][0] if shop_totals else None
+        top_shop_amount = float(shop_totals[0][1]) if shop_totals else 0.0
+
+        # simple label strings for UI
+        last_bill_label = f"Last: {last_bill_date}" if last_bill_date else ""
+        top_shop_label = f"€{top_shop_amount:.2f} total" if top_shop else ""
+
+        return jsonify({
+            "total_spent": float(total_spent),
+            "this_month_spent": float(this_month_spent),
+            "bill_count": int(bill_count),
+            "last_bill_label": last_bill_label,
+            "top_shop": top_shop,
+            "top_shop_label": top_shop_label,
+            "month_change_label": "",         # you can compute later if you want
+            "this_month_bills_label": ""      # e.g. "5 bills this month"
+        })
+@main_bp.route("/api/analytics/spending_by_users", methods=["GET"])
+@login_required
+def analytics_spending_by_users():
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "not authenticated"}), 403
+
+    with get_session() as db_session:
+        # We use Settlements to see for each paid_by_email, how much they covered.
+        settlements = models.get("settlements") if hasattr(models, "get") else Settlements  # adjust if needed
+        # You already imported Settlements at top of file
+
+        rows = db_session.query(
+            Settlements.paid_by_email,
+            func.sum(Settlements.amount).label("total")
+        ).filter_by(userid=userid).group_by(Settlements.paid_by_email).all()
+
+        result = []
+        for email, total in rows:
+            user = db_session.query(SplitInvoiceUser).filter_by(email=email).first()
+            result.append({
+                "email": email,
+                "name": user.name if user else email,
+                "total": float(total or 0)
+            })
+
+        return jsonify(result)
+@main_bp.route("/api/analytics/overall", methods=["GET"])
+@login_required
+def analytics_overall():
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "not authenticated"}), 403
+
+    modelShop = models.get("groceries")
+
+    with get_session() as db_session:
+        # Monthly: label "YYYY-Mon"
+        monthly_rows = db_session.query(
+            modelShop.year,
+            modelShop.month,
+            func.sum(modelShop.price).label("total")
+        ).filter_by(userid=userid).group_by(
+            modelShop.year, modelShop.month
+        ).order_by(modelShop.year, modelShop.month).all()
+
+        monthly_labels = [f"{year}-{month.capitalize()}" for (year, month, _) in monthly_rows]
+        monthly_values = [float(total or 0) for (_, _, total) in monthly_rows]
+
+        # Shop-wise
+        shop_rows = db_session.query(
+            modelShop.shopName,
+            func.sum(modelShop.price).label("total")
+        ).filter_by(userid=userid).group_by(modelShop.shopName).all()
+
+        shop_labels = [name for (name, _) in shop_rows]
+        shop_values = [float(total or 0) for (_, total) in shop_rows]
+
+        return jsonify({
+            "monthly": {
+                "labels": monthly_labels,
+                "values": monthly_values
+            },
+            "shopwise": {
+                "labels": shop_labels,
+                "values": shop_values
+            }
+        })
+# ==========================
+#  ANALYTICS DASHBOARD
+# ==========================
+
+from flask_login import login_required
+from sqlalchemy import func
+from sqlalchemy.orm import aliased
+from datetime import datetime
+from flask import session, jsonify, render_template
+from decimal import Decimal
+
+# Helper: get current user id
+# (you already have fetch_user_id_from_session defined above)
+
+
+@main_bp.route("/api/analytics/overview")
+@login_required
+def api_analytics_overview():
+    """
+    High-level overview numbers:
+      - total_spent (all time)
+      - this_month_spent
+      - bill_count
+      - top_shop
+    Based on groceries table, filtered by logged-in user's userid.
+    """
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    modelShop = models.get("groceries")
+    if not modelShop:
+        return jsonify({"error": "groceries model not found"}), 500
+
+    with get_session() as db_session:
+        # Total spent (sum of all prices)
+        total_spent = db_session.query(
+            func.coalesce(func.sum(modelShop.price), 0)
+        ).filter(
+            modelShop.userid == userid
+        ).scalar() or 0
+
+        # This month
+        now = datetime.now()
+        current_year = str(now.year)
+        current_month_name = now.strftime("%B").lower()  # e.g. "november"
+
+        this_month_spent = db_session.query(
+            func.coalesce(func.sum(modelShop.price), 0)
+        ).filter(
+            modelShop.userid == userid,
+            modelShop.year == current_year,
+            modelShop.month == current_month_name
+        ).scalar() or 0
+
+        # Distinct bill count
+        bill_count = db_session.query(
+            func.count(func.distinct(modelShop.billId))
+        ).filter(
+            modelShop.userid == userid
+        ).scalar() or 0
+
+        # Top shop by spending
+        top_shop_row = db_session.query(
+            modelShop.shopName,
+            func.coalesce(func.sum(modelShop.price), 0).label("total")
+        ).filter(
+            modelShop.userid == userid
+        ).group_by(
+            modelShop.shopName
+        ).order_by(
+            func.sum(modelShop.price).desc()
+        ).first()
+
+        top_shop = top_shop_row.shopName if top_shop_row else None
+
+        return jsonify({
+            "total_spent": float(total_spent),
+            "this_month_spent": float(this_month_spent),
+            "bill_count": int(bill_count),
+            "top_shop": top_shop
+        })
+@main_bp.route("/api/analytics/frequent_items")
+@login_required
+def api_analytics_frequent_items():
+    """
+    Frequently bought items by shop.
+    Based on groceries table (item + shopName).
+    """
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    modelShop = models.get("groceries")
+    if not modelShop:
+        return jsonify({"error": "groceries model not found"}), 500
+
+    with get_session() as db_session:
+        rows = db_session.query(
+            modelShop.item,
+            modelShop.shopName,
+            func.count().label("count"),
+            func.coalesce(func.sum(modelShop.price), 0).label("total_cost")
+        ).filter(
+            modelShop.userid == userid
+        ).group_by(
+            modelShop.item,
+            modelShop.shopName
+        ).all()
+
+        result = []
+        for item, shopName, count, total_cost in rows:
+            result.append({
+                "item": item,
+                "shopName": shopName,
+                "count": int(count or 0),
+                "total_cost": float(total_cost or 0)
+            })
+
+        return jsonify(result)
+
+
+@main_bp.route("/api/analytics/overall")
+@login_required
+def api_analytics_overall():
+    """
+    Overall spending:
+      - monthly.labels: list of "YYYY-MonthName"
+      - monthly.total:  total across all shops per month
+      - monthly.shops:  { shopName: [per month values aligned with labels] }
+      - shopwise: totals per shop (all time)
+    Based on groceries table.
+    """
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    modelShop = models.get("groceries")
+    if not modelShop:
+        return jsonify({"error": "groceries model not found"}), 500
+
+    month_order = {
+        "january": 1, "february": 2, "march": 3, "april": 4,
+        "may": 5, "june": 6, "july": 7, "august": 8,
+        "september": 9, "october": 10, "november": 11, "december": 12
+    }
+
+    with get_session() as db_session:
+        # Monthly by shop
+        rows = db_session.query(
+            modelShop.year,
+            modelShop.month,
+            modelShop.shopName,
+            func.coalesce(func.sum(modelShop.price), 0).label("total")
+        ).filter(
+            modelShop.userid == userid
+        ).group_by(
+            modelShop.year,
+            modelShop.month,
+            modelShop.shopName
+        ).all()
+
+        # Collect all (year, month) and shops
+        month_keys = set()
+        shops = set()
+        tmp = {}  # ((year, month, shop) -> total)
+
+        for year, month, shop, total in rows:
+            if not year or not month:
+                continue
+            m_key = (int(year), month.lower())
+            month_keys.add(m_key)
+            shops.add(shop)
+            tmp[(int(year), month.lower(), shop)] = float(total or 0)
+
+        # Sort months chronologically
+        sorted_months = sorted(
+            month_keys,
+            key=lambda ym: (ym[0], month_order.get(ym[1], 13))
+        )
+
+        labels = []
+        for year, month in sorted_months:
+            labels.append(f"{year}-{month.capitalize()}")
+
+        # Build shop series aligned with labels
+        shops_series = {shop: [0.0] * len(labels) for shop in shops}
+        total_per_month = [0.0] * len(labels)
+
+        for idx, (year, month) in enumerate(sorted_months):
+            for shop in shops:
+                val = tmp.get((year, month, shop), 0.0)
+                shops_series[shop][idx] = val
+                total_per_month[idx] += val
+
+        # Shopwise totals (all time)
+        shopwise_rows = db_session.query(
+            modelShop.shopName,
+            func.coalesce(func.sum(modelShop.price), 0).label("total")
+        ).filter(
+            modelShop.userid == userid
+        ).group_by(
+            modelShop.shopName
+        ).all()
+
+        shopwise_labels = []
+        shopwise_values = []
+        for shop, total in shopwise_rows:
+            shopwise_labels.append(shop)
+            shopwise_values.append(float(total or 0))
+
+        return jsonify({
+            "monthly": {
+                "labels": labels,
+                "total": total_per_month,
+                "shops": shops_series  # dict: shop -> [values per label]
+            },
+            "shopwise": {
+                "labels": shopwise_labels,
+                "values": shopwise_values
+            }
+        })
+
+
+@main_bp.route("/api/analytics/spending_by_users")
+@login_required
+def api_analytics_spending_by_users():
+    """
+    Spending (covered) by users, broken down by shop.
+    Uses DebtSettlementsBills (amount / paid_by_email) joined to groceries (shopName)
+    and SplitInvoiceUser (for friendly names).
+
+    Returns list of rows:
+      {
+        "email": "user@example.com",
+        "name": "User Name",
+        "shopName": "rewe",
+        "total": 123.45
+      }
+    """
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    modelShop = models.get("groceries")
+    if not modelShop:
+        return jsonify({"error": "groceries model not found"}), 500
+
+    with get_session() as db_session:
+        PaidByUser = aliased(SplitInvoiceUser)
+
+        rows = db_session.query(
+            DebtSettlementsBills.paid_by_email,
+            PaidByUser.name.label("paid_by_name"),
+            modelShop.shopName,
+            func.coalesce(func.sum(DebtSettlementsBills.amount), 0).label("total")
+        ).join(
+            PaidByUser, PaidByUser.email == DebtSettlementsBills.paid_by_email, isouter=True
+        ).join(
+            modelShop, modelShop.billId == DebtSettlementsBills.billId, isouter=True
+        ).filter(
+            DebtSettlementsBills.created_by == userid  # only bills created by this user
+        ).group_by(
+            DebtSettlementsBills.paid_by_email,
+            PaidByUser.name,
+            modelShop.shopName
+        ).all()
+
+        result = []
+        for email, name, shopName, total in rows:
+            result.append({
+                "email": email,
+                "name": name,
+                "shopName": shopName,
+                "total": float(total or 0)
+            })
+
+        return jsonify(result)
+
 
 @main_bp.route('/settlement_history', methods=['GET'])
 @login_required
@@ -1788,7 +2365,8 @@ def create_dataframe(pdf_path, filename, month, year, shopname, userid,bill_date
     try:
         # Convert PDF to an image
         scanned_object = None
-        if shopname == 'rewe':
+        if shopname in ( 'rewe','kaufland'):
+        #if shopname in ('rewe', 'kaufland'):
             extracted_text = extract_text_from_pdf(pdf_path,filename)
             scanned_object = ImageScanner('', filename, extracted_text, month, year,bill_date_str)
             text = scanned_object.get_text()

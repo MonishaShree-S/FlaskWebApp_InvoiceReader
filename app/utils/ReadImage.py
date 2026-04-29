@@ -82,6 +82,7 @@ def apply_formatting_patterns(receipt_text):
     Returns:
         str: Formatted text.
     """
+    logger.info("\n:::::: Inside apply_formatting_patterns :::::::")
     receipt_text = re.sub(r'\s*,', r',', receipt_text)  # Remove space before commas
     receipt_text = re.sub(r',\s*', r',', receipt_text)  # Ensure no trailing space after commas
     receipt_text = re.sub(r'\s+', ' ', receipt_text)  # Replace multiple spaces with a single space
@@ -89,6 +90,9 @@ def apply_formatting_patterns(receipt_text):
     formatted_text = ""
     # Add newlines before/after specific keywords or patterns
     formatted_text += re.sub(r'Kaufland', r'\nKaufland', receipt_text)  # New line before "Kaufland"
+    formatted_text = re.sub(r'(\d{5}\s+[A-Za-zÄÖÜäöüß\-]+)\s+(Tel\.)', r'\1\n\2', formatted_text)
+    receipt_text = re.sub(r'(DE\d{9,})\s+(Preis EUR)', r'\1\n\2\n', receipt_text)
+
     formatted_text = re.sub(r'( \d{5} \w+)', r'\n\1', formatted_text)  # Address after zip code
     formatted_text = re.sub(r'(Tel \d{3}/\d{7})', r'\n\1', formatted_text)  # New line before telephone number
     formatted_text = re.sub(r'(Preis EUR)', r'\n\1\n', formatted_text)  # New line before price
@@ -108,6 +112,7 @@ def apply_formatting_patterns(receipt_text):
 
     formatted_text = re.sub(r'(Ruckgeld \d+,\d+)', r'\n\1', formatted_text)  # New line before refund
     formatted_text = re.sub(r'(Steuer %)', r'\n\1', formatted_text)  # New line before tax details
+    formatted_text = re.sub(r'(Kaufland Card XTRA:)', r'\n\1', formatted_text)
 
     # Format dates and times
     #formatted_text = re.sub(r'(Datum:?\s*\d{2}\.\d{2}\.\d{2})', r'\n\1', formatted_text)

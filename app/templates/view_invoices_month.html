@@ -24,7 +24,54 @@
 </style>
 <body class="view-page-background container mt-5">
     <h2>Invoices for {{ month.capitalize() }} {{ year }}</h2>
+    <form method="GET" class="mb-4">
 
+        <!-- keep current month/year -->
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+
+        <div class="row">
+
+            <div class="col-md-4">
+                <select name="sort_by"
+                        class="form-control"
+                        onchange="this.form.submit()">
+
+                    {% if selected_sort == 'date_desc' %}
+                    <option value="date_desc" selected>Date ↓ Newest</option>
+                    {% else %}
+                    <option value="date_desc">Date ↓ Newest</option>
+                    {% endif %}
+
+                    {% if selected_sort == 'date_asc' %}
+                    <option value="date_asc" selected>Date ↑ Oldest</option>
+                    {% else %}
+                    <option value="date_asc">Date ↑ Oldest</option>
+                    {% endif %}
+
+                    {% if selected_sort == 'shop_asc' %}
+                    <option value="shop_asc" selected>Shop A-Z</option>
+                    {% else %}
+                    <option value="shop_asc">Shop A-Z</option>
+                    {% endif %}
+
+                    {% if selected_sort == 'price_asc' %}
+                    <option value="price_asc" selected>Price ↑ Low to High</option>
+                    {% else %}
+                    <option value="price_asc">Price ↑ Low to High</option>
+                    {% endif %}
+
+                    {% if selected_sort == 'price_desc' %}
+                    <option value="price_desc" selected>Price ↓ High to Low</option>
+                    {% else %}
+                    <option value="price_desc">Price ↓ High to Low</option>
+                    {% endif %}
+
+                </select>
+            </div>
+
+        </div>
+    </form>
     {% if bills %}
         <div class="row">
             {% for bill in bills %}

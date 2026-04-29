@@ -19,6 +19,28 @@ body {
     margin: 10;
     padding: 0;
 }
+/* override global background only for analytics */
+.analytics-wrapper,
+.analytics-wrapper * {
+    background-image: none !important;
+    background-color: transparent !important;
+}
+
+.main-panel {
+    background: #f5f7fb !important;
+    padding-top: 40px !important;
+}
+.chart-card {
+    background: #ffffff !important;
+}
+body {
+    background: #f5f7fb !important;
+}
+.sidebar {
+    background: #111827 !important;
+    height: 100vh;
+}
+
 
 /* Additional Styling for Signup & Login */
 .signup-container, .login-container {

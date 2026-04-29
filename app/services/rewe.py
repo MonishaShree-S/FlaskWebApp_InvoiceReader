@@ -34,6 +34,15 @@ def format_receipt_text(text):
     text = re.sub(r'(\d+,\d+\s+[AB])\s+(?=\d+\s+Stk\s+x\s+\d+,\d+)', r'\1 ', text)
 
     # --- 🔧 NEW: join price line with piece block if formatter split them
+    # Converts:
+    #   "* LEERG. MW V. ST -0,72 A 9 Stk x 0,08"
+    # Into:
+    #   "* LEERG. MW V. ST -0,72 A\n9 Stk x 0,08"
+    text = re.sub(
+        r'([A-ZÄÖÜa-z0-9!+&/\s\.-]+?\s+[+-]?\d+,\d{2}\s+[AB])\s+(\d+)\s+Stk\s*x\s*([+-]?\d+,\d{2})',
+        r'\1\n\2 Stk x \3',
+        text
+    )
     text = re.sub(
         r'([+-]?\d+,\d{2}\s+[AB])\s*\*?\s*\n\s*\*?\s*(\d+)\s*Stk\s*x\s*([+-]?\d+,\d{2})',
         r'\1 \2 Stk x \3',
@@ -203,7 +212,30 @@ def parse_items_from_formatted_text(text: str):
       {"item": str, "quantity": float, "price": float, "pricePerKg": Optional[float], "shopName": "REWE"}
     """
     items = []
+    # --- [ NEW ] Fix single-line PFAND / deposit items like:
+    # "* LEERG. MW V. ST -0,72 A 9 Stk x 0,08"
+    # "LEERGUT EINWEG -6,50 A 26 Stk x 0,25"
+    pfand_regex = re.compile(
+        r'([A-ZÄÖÜa-z0-9!+&/\s\.-]+?)\s+([+-]?\d+,\d{2})\s+[AB]\s+(\d+)\s+Stk\s*x\s*([+-]?\d+,\d{2})',
+        re.I
+    )
+    pfand_items = []
+    for m in pfand_regex.finditer(text):
+        name = m.group(1).strip()
+        price = euro_to_float(m.group(2))  # already the TOTAL, correct negative value
+        qty = float(m.group(3))
+        unit = euro_to_float(m.group(4))
 
+        pfand_items.append({
+            "item": name,
+            "quantity": qty,
+            "price": price,  # KEEP THE NEGATIVE SIGN
+            "pricePerKg": None,
+            "shopName": "REWE"
+        })
+
+    # Add PFAND items to the items list FIRST, and remember them so regex below does not duplicate
+    pfand_names = {i["item"].lower() for i in pfand_items}
     # 1) Grab the basic lines first (keeps original order)
     regular_item_regex = re.compile(
         r'^(?!SUMME\b|Geg\.\b|Mastercard\b|Datum\b|Uhrzeit\b|Beleg-Nr\.\b|UID\b)'
