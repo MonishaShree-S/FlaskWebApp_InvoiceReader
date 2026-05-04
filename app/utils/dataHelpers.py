@@ -165,3 +165,73 @@ def convert_date(date_str):
 
     print(f"Error converting date: {date_str!r}")
     return None
+
+def receipt_json_to_df(
+    receipt_json: dict,
+    *,
+    month: str,
+    year: str,
+    shopname: str,
+    userid: int,
+    bill_date_str: str,
+    bill_id: str
+) -> pd.DataFrame:
+    """
+    Convert receipt JSON (from OpenAI vision) into a DataFrame compatible with
+    your groceries DB insert logic.
+
+    Key rule:
+    - If BOTH quantity and weight_quantity are missing -> default quantity to 1.
+    """
+
+    items = receipt_json.get("items") or []
+    if not items:
+        return pd.DataFrame()
+
+    address = receipt_json.get("address")
+    invoice_number = receipt_json.get("invoiceNumber")
+    total_sum = receipt_json.get("totalSum")
+
+    rows = []
+    for it in items:
+        qty = it.get("quantity")
+        weight_qty = it.get("weight_quantity")
+
+        # ✅ Default quantity to 1 if nothing specified (common on receipts)
+        if qty is None and weight_qty is None:
+            qty = 1
+
+        # line total (legacy "price" column in your DB)
+        line_total = it.get("total_price")
+
+        rows.append({
+            # metadata
+            "month": (month or "").lower(),
+            "year": int(year),
+            "userid": int(userid),
+            "billId": bill_id,
+            "date": bill_date_str,
+
+            # item fields
+            "item": it.get("item"),
+            "quantity": qty,
+            "weight_quantity": weight_qty,
+
+            # legacy meaning: line total
+            "price": line_total,
+
+            # unified fields you already insert
+            "unit_price": it.get("unit_price"),
+            "unit_type": it.get("unit_type"),
+            "total_price": line_total,
+            "unit_price_pricePerKg": None,  # compute later if you want
+
+            # receipt fields
+            "shopName": (shopname or "").lower(),
+            "address": address,
+            "invoiceNumber": invoice_number,
+            "totalSum": total_sum,
+        })
+
+    return pd.DataFrame(rows)
+

@@ -2,7 +2,7 @@ import pandas as pd
 import re
 import json
 import os
-from app.utils.ReadImage import processImageText
+from app.utils.ReadImage import processImageText,apply_formatting_patterns
 import logging
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, date
@@ -21,14 +21,28 @@ class ImageScanner:
         self.manual_date_str=bill_date_str
         if extractedtext:
             print("++++extractedtext: \n",extractedtext)
-            text_1 = 'REWE ' + extractedtext
-            self.text = format_receipt_text(text_1)
-            # parse items right here
-            self.items = parse_items_from_formatted_text(self.text)
-            print(self.text)
+            if 'REWE' in extractedtext:
+                text_1 = 'REWE ' + extractedtext
+                self.text = format_receipt_text(text_1)
+                # parse items right here
+                self.items = parse_items_from_formatted_text(self.text)
+                print(self.text)
+            else:
+                # Non-REWE digital PDF (e.g. Kaufland) — use text as-is
+                print("\n ÜÜÜÜ Kaufland ÜÜÜÜ")
+                logger.info("Applying regex patterns to format the text...")
+                self.text = format_receipt_text(extractedtext)
+                #self.text = extractedtext
+                #receipt_text=extractedtext
+                logger.info("Applying regex patterns to format the text...")
+                #formatted_text = apply_formatting_patterns(receipt_text)
+                print('***************formatted_text********', self.text)
+                #self.items = []
+                print(self.text)
         else:
             self.text = processImageText(imagepath)
-        #print(self.text)
+        print("\n***Extracted Text***")
+        print(self.text)
 
     def get_text(self):
         return self.text
@@ -190,9 +204,11 @@ class ImageScanner:
         return total_amount
 
     def get_invoice(self):
+        invoice_number = None
         invoice_number_pattern = r"([D][E][0-9]{9})"
         invoice_number_match = re.search(invoice_number_pattern, self.text)
-        rewe_invoice_number_pattern = r"Beleg-Nr\.\s+(\d+)"
+        #rewe_invoice_number_pattern = r"Beleg-Nr\.\s+(\d+)"
+        rewe_invoice_number_pattern = r"(?:Bon|Beleg)-Nr\.?:\s*(\d+)"
         rewe_invoice_number_match = re.search(rewe_invoice_number_pattern, self.text)
 
         if rewe_invoice_number_match:
@@ -210,6 +226,163 @@ class ImageScanner:
         return telephone_number
 
     def get_Address(self):
+        import re
+
+        text = self.text or ""
+        if not text.strip():
+            return ""
+
+        # Flatten whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+
+        # Remove obvious footer/payment area
+        text = re.split(
+            r'Kaufland Card XTRA:|Kartenzahlung -K-U-N-D-E-N-B-E-L-E-G-|Terminal-ID|DEBIT MASTERCARD|EMV-AID|Bon:|Filiale:|Kasse:',
+            text,
+            maxsplit=1,
+            flags=re.IGNORECASE
+        )[0].strip()
+
+        # Find "12345 City"
+        plz_city_match = re.search(
+            r'\b(\d{5}\s+[A-Za-zÄÖÜäöüß\-]+(?:\s+[A-Za-zÄÖÜäöüß\-]+)*)\b',
+            text,
+            re.IGNORECASE
+        )
+        if not plz_city_match:
+            return ""
+
+        plz_city = plz_city_match.group(1)
+        plz_start = plz_city_match.start()
+
+        # Look backward before PLZ to find a street + house number ending right before PLZ
+        prefix = text[:plz_start].strip()
+
+        street_match = re.search(
+            r'([A-Za-zÄÖÜäöüß0-9\.\-\/]+(?:\s+[A-Za-zÄÖÜäöüß0-9\.\-\/]+)*\s+\d+[a-zA-Z]?)\s*$',
+            prefix,
+            re.IGNORECASE
+        )
+        if not street_match:
+            return plz_city
+
+        street = street_match.group(1).strip()
+
+        # Keep only the tail from the last sentence break if OCR glued text before it
+        # e.g. "points for this purchase. Karl-Liebknecht-Straße 13"
+        street = re.split(r'[.:;!?]\s+', street)[-1].strip()
+
+        # Extra cleanup for common junk prefixes
+        junk_prefixes = [
+            r'points for this purchase\.?\s*',
+            r'You earned \d+ points for this purchase\.?\s*',
+        ]
+        for jp in junk_prefixes:
+            street = re.sub(jp, '', street, flags=re.IGNORECASE).strip()
+
+        return f"{street} {plz_city}".strip()
+    def get_Address_(self):
+
+        text = self.text or ""
+        if not text.strip():
+            return ""
+
+        # Normalize whitespace but keep line boundaries useful
+        normalized_text = re.sub(r'[ \t]+', ' ', text).strip()
+        flattened_text = re.sub(r'\s+', ' ', text).strip()
+
+        # -----------------------------
+        # 1) Generic regex-first extraction
+        # Works better for flattened OCR receipts
+        # Example: Karl-Liebknecht-Straße 13 10178 Berlin
+        # -----------------------------
+        address_patterns = [
+            # Street + house number + PLZ + city
+            r'([A-Za-zÄÖÜäöüß0-9\.\-\/]+\s+(?:Straße|Str\.|Strasse|Weg|Allee|Platz|Ring|Damm|Ufer|Gasse)'
+            r'(?:\s+[A-Za-zÄÖÜäöüß0-9\.\-\/]+)*\s+\d+[a-zA-Z]?\s+\d{5}\s+[A-Za-zÄÖÜäöüß\-\s]+)',
+
+            # More generic: street words + house number + PLZ + city
+            r'([A-Za-zÄÖÜäöüß0-9\.\-\/]+(?:\s+[A-Za-zÄÖÜäöüß0-9\.\-\/]+){0,5}\s+\d+[a-zA-Z]?\s+\d{5}\s+[A-Za-zÄÖÜäöüß\-\s]+)'
+        ]
+
+        # Cut off obvious payment/footer areas before matching
+        footer_cut_patterns = [
+            r'Kaufland Card XTRA:',
+            r'Kartenzahlung',
+            r'Terminal-ID',
+            r'DEBIT MASTERCARD',
+            r'EMV-AID',
+            r'Bon:',
+            r'Filiale:',
+            r'Kasse:'
+        ]
+
+        header_part = flattened_text
+        for marker in footer_cut_patterns:
+            split_result = re.split(marker, header_part, maxsplit=1, flags=re.IGNORECASE)
+            if len(split_result) > 1:
+                header_part = split_result[0].strip()
+                break
+
+        for pattern in address_patterns:
+            match = re.search(pattern, header_part, re.IGNORECASE)
+            if match:
+                return match.group(1).strip(" ,.-")
+
+        # -----------------------------
+        # 2) Fallback to existing shop-based logic
+        # -----------------------------
+        shop_names = ['Kaufland', 'REWE']
+
+        start_index = -1
+        for shop in shop_names:
+            found = re.search(r'\b' + re.escape(shop) + r'\b', normalized_text, re.IGNORECASE)
+            if found:
+                start_index = found.end()
+                break
+
+        if start_index == -1:
+            # Last fallback: try direct PLZ + city capture only
+            plz_city_match = re.search(
+                r'([A-Za-zÄÖÜäöüß0-9\.\-\/\s]+?\d+[a-zA-Z]?\s+\d{5}\s+[A-Za-zÄÖÜäöüß\-\s]+)',
+                header_part,
+                re.IGNORECASE
+            )
+            return plz_city_match.group(1).strip(" ,.-") if plz_city_match else ""
+
+        end_keywords = ["Tel", "UID", "USt", "Preis", "EUR"]
+        end_index = len(normalized_text)
+
+        for keyword in end_keywords:
+            found_index = normalized_text.find(keyword, start_index)
+            if found_index != -1:
+                end_index = min(end_index, found_index)
+
+        address_text = normalized_text[start_index:end_index].strip()
+
+        lines = [line.strip(" ,.-") for line in address_text.splitlines() if line.strip()]
+
+        city_pattern = re.compile(
+            r'\b(?:Berlin|Adlershof|Ingolstadt|Spandau|Munich|Hamburg|Cologne|Frankfurt|'
+            r'Stuttgart|Dusseldorf|Dresden|Leipzig|Hannover)\b',
+            re.IGNORECASE
+        )
+
+        address_lines = []
+        for line in lines:
+            address_lines.append(line)
+            if city_pattern.search(line):
+                break
+
+        result = ', '.join(address_lines).strip(" ,.-")
+
+        # If fallback still looks wrong, return empty string instead of huge garbage
+        if len(result) > 120:
+            return ""
+
+        return result
+
+    def get_Address_old2(self):
         # Shop names that we want to extract addresses for
         shop_names = ['Kaufland', 'REWE']
 
@@ -332,9 +505,14 @@ class ImageScanner:
         # ---------- Added helper + Kaufland-specific patterns (do not remove/alter existing code) ----------
         def euro_to_float(s: str) -> float:
             return float(s.replace('.', '').replace(',', '.'))
-
+        #old
+        #kaufland_qty_line = re.compile(
+            #r'^(.+?)\s+(\d+)\s+(\d+,\d{2})\s+(\d+,\d{2})\s+([A-B])$',
+            #re.IGNORECASE
+        #)
+        # NEW — handles both "NAME qty unit total TAX" and "NAME qty * unit total TAX":
         kaufland_qty_line = re.compile(
-            r'^(.+?)\s+(\d+)\s+(\d+,\d{2})\s+(\d+,\d{2})\s+([A-B])$',
+            r'^(.+?)\s+(\d+)\s*\*?\s*(\d+,\d{2})\s+(\d+,\d{2})\s+([A-D])$',
             re.IGNORECASE
         )
         # e.g. "Bananen 0,908 kg 0,72 B" or "Äpfel 1,210 kg x 2,49 EUR/kg 3,01 B"
@@ -348,10 +526,47 @@ class ImageScanner:
             re.IGNORECASE
         )
         # ---------------------------------------------------------------------------------------------------
-
+        # ---- Pre-pass: join continuation lines (e.g. "Diam.Puderzucker\n 2 * 0,49 0,98 B") ----
+        continuation = re.compile(r'^\s*(\d+)\s*\*\s*(\d+,\d{2})\s+(\d+,\d{2})\s+([A-D])\s*$')
+        joined_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            # If the NEXT line looks like "N * price total TAX" with no item name, merge it
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                m_cont = continuation.match(next_line)
+                if m_cont and line.strip() and not re.search(r'\d+,\d{2}\s+[A-D]$', line.strip()):
+                    # merge: "Diam.Puderzucker 2 * 0,49 0,98 B"
+                    joined_lines.append(f"{line.strip()} {next_line.strip()}")
+                    i += 2
+                    continue
+            joined_lines.append(line)
+            i += 1
+        lines = joined_lines
+        # -----------------------------------------------------------------------------------------
         # Second Approach
         for i,line in enumerate(lines):
             logger.info("***************Inside groceries method")
+            ls = line.strip()
+            # --- NEW: Catch PFAND lines with negative values and "N Stk x price" on SAME line ---
+            pfand_inline = re.compile(
+                r'^(.+?)\s+([+-]?\d+,\d{2})\s+[AB]\s+(\d+)\s+Stk\s*x\s*([+-]?\d+,\d{2})$'
+            )
+            m_pfand = pfand_inline.match(ls)
+            if m_pfand:
+                item = m_pfand.group(1).strip()
+                price = euro_to_float(m_pfand.group(2))  # NEGATIVE PRESERVED!
+                qty = float(m_pfand.group(3))
+                unit = euro_to_float(m_pfand.group(4))
+
+                result_list.append({
+                    "item": item,
+                    "quantity": qty,
+                    "unit_price": unit,
+                    "price": price,  # DO NOT RECALCULATE! (Rewe price already includes negative!)
+                })
+                continue
 
             # ---------- Kaufland-first pass (inserted before your existing checks) ----------
             ls = line.strip()
