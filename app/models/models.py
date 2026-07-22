@@ -1,6 +1,6 @@
 from flask_login import UserMixin
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy import Column, Integer, String,ForeignKey ,Float, Boolean
+from sqlalchemy import Column, Integer, String,ForeignKey ,Float, Boolean, Date
 from app.services.DatabaseConnection import db, Base
 from flask import current_app
 from sqlalchemy.orm import Session, relationship
@@ -167,8 +167,68 @@ class SettlementLog(db.Model):
     def __repr__(self):
         return f"<SettlementLog({self.paid_by_email} ← {self.owed_by_email}: {self.amount_paid})>"
 
+class CreditCardTransaction(db.Model):
+    __tablename__ = "CreditCardTransactions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(Integer, ForeignKey("USERDATA.userid"), nullable=False)
+
+    statement_id = Column(String(255), nullable=False)
+    provider = Column(String(50), nullable=False)
+    statement_month = Column(String(20), nullable=False)
+
+    transaction_date = Column(DateTime, nullable=False)
+    card_number = Column(String(30), nullable=True)
+    description = Column(String(255), nullable=False)
+    amount = Column(Float, nullable=False)
+    points = Column(Integer, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<CreditCardTransaction({self.provider}, {self.transaction_date}, {self.amount})>"
 
 
+class CreditCardStatement(db.Model):
+    __tablename__ = "CreditCardStatements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(Integer, ForeignKey("USERDATA.userid"), nullable=False)
+
+    statement_id = Column(String(255), nullable=False)
+    provider = Column(String(50), nullable=False)
+    statement_month = Column(String(20), nullable=False)
+
+    statement_start_date = Column(Date, nullable=True)
+    statement_end_date = Column(Date, nullable=True)
+    closing_date = Column(Date, nullable=True)
+    booking_date = Column(Date, nullable=True)
+
+    total_amount = Column(Float, nullable=True)
+    transaction_count = Column(Integer, nullable=True)
+
+    current_points = Column(Integer, nullable=True)
+    points_earned = Column(Integer, nullable=True)
+    points_redeemed = Column(Integer, nullable=True)
+
+    current_points_eur = Column(Float, nullable=True)
+    points_earned_eur = Column(Float, nullable=True)
+    points_redeemed_eur = Column(Float, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class Budgets(db.Model):
+    __tablename__ = 'Budgets'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(Integer, ForeignKey('USERDATA.userid'), nullable=False)
+    category = Column(String(100), nullable=False)
+    monthly_limit = Column(Float, nullable=False)
+    warn_threshold_pct = Column(Integer, default=90, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<Budgets(userid={self.userid}, category={self.category}, limit={self.monthly_limit})>"
 
 
 # Automap Base for dynamic models

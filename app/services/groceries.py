@@ -488,7 +488,14 @@ class ImageScanner:
     def get_groceries_bill(self):
         IsNoneItemMatch = False
         Address = self.get_Address()
-        start_index = self.text.find('EUR') + len('EUR') + 1  # Skip "REWE" and newline
+        # For Kaufland receipts the header ends with "Preis EUR" (the price column label).
+        # Search for that specifically so we don't accidentally land inside the header when
+        # OCR misreads a stray "EUR" or the bare find('EUR') returns -1.
+        preis_eur = re.search(r'Preis\s+EUR', self.text, re.IGNORECASE)
+        if preis_eur:
+            start_index = preis_eur.end() + 1
+        else:
+            start_index = self.text.find('EUR') + len('EUR') + 1  # fallback for REWE
         # end_index = self.text.rfind("Total")  # Find last occurrence of "Berlin"
 
         match = re.search(r'Summe|SUMME', self.text, re.IGNORECASE)  # Case-insensitive search

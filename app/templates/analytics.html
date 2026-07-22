@@ -117,6 +117,22 @@
     </div>
   </div>
 
+  <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <label for="filter-year" style="font-size:0.8rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:0.06em;">Year</label>
+      <select id="filter-year" onchange="applyFilters()" style="font-size:0.85rem;border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface);color:var(--text);cursor:pointer;">
+        <option value="">All years</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <label for="filter-shop" style="font-size:0.8rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:0.06em;">Shop</label>
+      <select id="filter-shop" onchange="applyFilters()" style="font-size:0.85rem;border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface);color:var(--text);cursor:pointer;">
+        <option value="">All shops</option>
+      </select>
+    </div>
+    <span id="filter-indicator" style="font-size:0.78rem;color:var(--muted);display:none;">Filtering…</span>
+  </div>
+
   <div class="tabs">
     <button class="tab active" onclick="switchTab('overview',this)">Overview</button>
     <button class="tab" onclick="switchTab('items',this)">Item Analysis</button>
@@ -644,18 +660,44 @@ async function loadOverviewConcepts() {
   }
 }
 
+function getFilters() {
+  const year = document.getElementById('filter-year')?.value || '';
+  const shop = document.getElementById('filter-shop')?.value || '';
+  const params = new URLSearchParams();
+  if (year) params.set('year', year);
+  if (shop) params.set('shop', shop);
+  return params.toString() ? '?' + params.toString() : '';
+}
+
+function populateFilterDropdowns(data) {
+  const yearSel = document.getElementById('filter-year');
+  const shopSel = document.getElementById('filter-shop');
+  const currentYear = yearSel.value;
+  const currentShop = shopSel.value;
+
+  const years = data.available_years || [];
+  yearSel.innerHTML = '<option value="">All years</option>' +
+    years.map(y => `<option value="${y}"${String(y) === currentYear ? ' selected' : ''}>${y}</option>`).join('');
+
+  const shops = data.available_shops || [];
+  shopSel.innerHTML = '<option value="">All shops</option>' +
+    shops.map(s => `<option value="${s}"${s === currentShop ? ' selected' : ''}>${s}</option>`).join('');
+}
+
 async function loadOverallConcepts() {
   try {
-    overallDataRaw = await fetchJSON('/api/analytics/overall');
+    overallDataRaw = await fetchJSON('/api/analytics/overall' + getFilters());
+    populateFilterDropdowns(overallDataRaw);
   } catch (err) {
     console.warn('Overall load skipped:', err);
-    overallDataRaw = { monthly: { labels: [], total: [], shops: {} }, shopwise: { labels: [], values: [] } };
+    overallDataRaw = { monthly: { labels: [], values: [], shops: {} }, shopwise: { labels: [], values: [] } };
   }
 }
 
 async function loadFrequentItemConcepts() {
   try {
-    frequentDataRaw = await fetchJSON('/api/analytics/frequent_items');
+    const qs = getFilters();
+    frequentDataRaw = await fetchJSON('/api/analytics/frequent_items' + qs);
     allItems = (Array.isArray(frequentDataRaw) ? frequentDataRaw : []).map(row => ({
       name: row?.item || '',
       category: guessCategory(row?.item),
@@ -893,8 +935,8 @@ function renderBudgetCharts() {
     ? overallDataRaw.monthly.labels
     : ['No data'];
 
-  const weeklyValues = overallDataRaw?.monthly?.total?.length
-    ? overallDataRaw.monthly.total
+  const weeklyValues = (overallDataRaw?.monthly?.values || overallDataRaw?.monthly?.total || []).length
+    ? (overallDataRaw.monthly.values || overallDataRaw.monthly.total)
     : [0];
 
   destroyChart('weeklyChart');
@@ -993,6 +1035,16 @@ function setHeaderShopSummary() {
   const labels = overallDataRaw?.shopwise?.labels || [];
   if (!labels.length) return;
   document.getElementById('header-shops').textContent = labels.join(' + ');
+}
+
+async function applyFilters() {
+  const indicator = document.getElementById('filter-indicator');
+  indicator.style.display = 'inline';
+  try {
+    await hydrateTemplateFromAPIs();
+  } finally {
+    indicator.style.display = 'none';
+  }
 }
 
 async function hydrateTemplateFromAPIs() {

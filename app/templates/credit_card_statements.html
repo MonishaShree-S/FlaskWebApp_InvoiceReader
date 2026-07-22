@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credit Card Statements</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .card {
+            background-color: #D7D8C5 !important;
+            border: none !important;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .badge-provider {
+            background-color: #6c757d;
+            color: #fff;
+            font-size: 12px;
+            padding: 3px 8px;
+            border-radius: 10px;
+        }
+        .total-chip {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+    </style>
+</head>
+<body class="view-page-background">
+    {% include 'user_icon.html' %}
+     <div class="container mt-5">
+    <h2 class="mb-4">Credit Card Statements</h2>
+
+    {% if statements %}
+        <div class="row">
+            {% for s in statements %}
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="card-title mb-0">{{ s.statement_month }}</h5>
+                            <span class="badge-provider">{{ s.provider }}</span>
+                        </div>
+                        <p class="mb-1"><strong>Transactions:</strong> {{ s.transaction_count }}</p>
+                        <p class="total-chip mb-3">Total: €{{ "%.2f"|format(s.total_amount) }}</p>
+                        <a href="{{ url_for('main.credit_card_statement_detail', statement_id=s.statement_id) }}"
+                           class="btn btn-sm btn-primary">View Details</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p class="text-muted">No credit card statements found. Upload a statement to get started.</p>
+    {% endif %}
+
+    <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark mt-2">Back</a>
+         </div>
+</body>
+</html>

@@ -1,31 +1,30 @@
 #Flaskapp/main_routes.py
 from io import BytesIO
 from collections import defaultdict
-from sqlalchemy import func, and_
-# NEW imports for sheet upload
-from werkzeug.utils import secure_filename
-import io
-import csv
-import re
+#from sqlalchemy import func, and_
+# NEW imports for sheet upload#
 from flask import Blueprint, request, current_app, jsonify, render_template, redirect, url_for, abort, send_file, \
     Response
-from flask import session
-from sqlalchemy import func
 from sqlalchemy import bindparam, String
 from flask_login import login_required
 import os
-import logging
+#import logging
 import pandas as pd
-from app.services.groceries import ImageScanner
+#from app.services.groceries import ImageScanner
 from app.models.models import Users, models, SplitInvoiceUser, get_session, SplitInvoiceDetail, Settlements, \
-    DebtSettlements, DebtSettlementsBills,DebtSummary,SettlementLog
-from app.utils.dataHelpers import convert_date, create_dataframe, receipt_json_to_df
+    DebtSettlements, DebtSettlementsBills,DebtSummary,SettlementLog, CreditCardTransaction
+#from app.utils.dataHelpers import convert_date, create_dataframe, receipt_json_to_df,is_allowed_sheet,collapse_whitespace,normalize_date_string,normalize_shop_name,float_from_cell,build_items_signature,get_month_name_from_iso,_split_ym,
+from app.utils.dataHelpers import *
 from app.utils.ReadPdf import pdf_to_jpg, extract_text_from_pdf
 from app.utils.openai_receipt_parser import parse_receipt_image_to_json
-from sqlalchemy.orm import aliased
+from app.utils.pdf_upload_helpers import *
 from datetime import datetime, timezone
-from decimal import Decimal
+#from decimal import Decimal
+from app.utils.route_helpers import sanitize_input, fetch_user_id_from_session,allowed_file,allowed_image
 import math
+from werkzeug.utils import secure_filename
+from app.services.credit_cards import parse_amazon_visa_statement
+
 
 # Blueprint setup
 main_bp = Blueprint('main', __name__)
@@ -34,17 +33,8 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {'pdf'}
 ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
-
-def allowed_image(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
-
-
-def allowed_file(filename):
-    """
-    Check if a file's extension is allowed.
-    """
-    ALLOWED_EXTENSIONS = {'pdf'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+MAX_BATCH_FILES = 20
+MAX_PDF_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB per PDF
 
 
 @main_bp.route('/index')
@@ -59,9 +49,25 @@ def upload_file():
     Handles file uploads by saving the file and recording metadata in the database.
     """
     try:
+        userid = fetch_user_id_from_session()
+        if not userid:
+            return jsonify({'error': 'User not authenticated or invalid session.'}), 403
+
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file part in the request.'}), 400
         # Fetch and validate inputs
-        filename = request.form.get('filename')
-        filename_for_billid=filename
+        #filename = request.form.get('filename')
+        #filename_for_billid=filename
+        file = request.files['file']
+
+        safe_filename = secure_filename(file.filename)
+
+        if not safe_filename.lower().endswith('.pdf'):
+            return jsonify({'error': 'Only PDF files are accepted.'}), 400
+
+        filename = safe_filename
+        filename_for_billid = os.path.splitext(safe_filename)[0]
+
         # Ensure the filename ends with .pdf
         if not filename.lower().endswith('.pdf'):
             filename += '.pdf'
@@ -179,24 +185,6 @@ def upload_file():
                     return None if v in (None, "", "None") else str(v)
 
                 try:
-                    '''for index, row in df.iterrows():
-                        new_entry = modelShop(
-                            userid=int(userid),
-                            billId=filename_for_billid,
-                            month=row['month'],
-                            year=int(row['year']),
-                            item=row['item'],
-                            quantity=row['quantity'],
-                            weight_quantity=row['weight_quantity'],
-                            price=row['price'],
-                            pricePerKg=_clean_float(row.get('pricePerKg')),
-                            shopName=row['shopName'],
-                            address=row['address'],
-                            invoiceNumber=row['invoiceNumber'],
-                            totalSum=row['totalSum'],
-                            date=row['date']
-                        )'''
-                        #db_session.add(new_entry)
 
                     logger.info(f"shopname from form/session: {shopname}")
                     #logger.info(f"row shopName from parser: {row.get('shopName')}")
@@ -254,6 +242,103 @@ def upload_file():
     except Exception as e:
         logger.error(f"Error during file upload: {str(e)}")
         return jsonify({'error': 'An internal error occurred.', 'details': str(e)}), 500
+@main_bp.route("/upload_batch", methods=["POST"])
+@login_required
+def upload_batch_files():
+    """
+    Batch PDF upload.
+    Each billId is derived from each uploaded PDF filename.
+    """
+    try:
+        userid = fetch_user_id_from_session()
+        if not userid:
+            return jsonify({"error": "User not authenticated or invalid session."}), 403
+
+        files = request.files.getlist("files")
+        if not files:
+            return jsonify({"error": "No PDF files provided."}), 400
+
+        if len(files) > MAX_BATCH_FILES:
+            return jsonify({
+                "error": f"Too many files. Maximum allowed is {MAX_BATCH_FILES} PDFs per batch."
+            }), 400
+
+        name_of_shop = request.form.get("NameOfTheShop")
+
+
+        if not name_of_shop:
+            return jsonify({"error": "Missing shop name."}), 400
+
+
+        shopname = name_of_shop.lower().strip()
+
+
+
+        if not  sanitize_input(shopname):
+            return jsonify({"error": "Input Shop contains invalid characters."}), 400
+
+        inserted = []
+        skipped = []
+        errors = []
+        needs_confirmation = []
+
+        # filenames the user explicitly confirmed as different bills
+        force_filenames = set(request.form.getlist("force_insert_filenames"))
+
+        with get_session() as db_session:
+            for file in files:
+                try:
+                    date_info = extract_date_from_bill_filename(file.filename)
+                    is_forced = secure_filename(file.filename) in force_filenames
+
+                    result = process_one_pdf_upload(
+                        file_storage=file,
+                        userid=int(userid),
+                        shopname=shopname,
+                        month=date_info["month"],
+                        year=date_info["year"],
+                        bill_date_str=date_info["date"],
+                        db_session=db_session,
+                        force_insert=is_forced
+                    )
+
+                    if result["status"] == "inserted":
+                        inserted.append(result)
+                    elif result["status"] == "skipped":
+                        skipped.append(result)
+                    elif result["status"] == "needs_confirmation":
+                        needs_confirmation.append(result)
+                    else:
+                        errors.append(result)
+
+                except Exception as file_exc:
+                    errors.append({
+                        "filename": secure_filename(file.filename or "unknown"),
+                        "reason": str(file_exc)
+                    })
+
+            if inserted:
+                db_session.commit()
+                session["billid"] = inserted[-1]["billId"]
+                session["NameOfTheShop"] = shopname
+            else:
+                db_session.rollback()
+
+        return jsonify({
+            "success": True,
+            "inserted_bills": inserted,
+            "skipped_duplicates": skipped,
+            "needs_confirmation": needs_confirmation,
+            "errors": errors,
+            "redirect": url_for("main.view_data", billId=inserted[-1]["billId"]) if inserted else None
+        }), 200
+
+    except Exception as exc:
+        logger.exception("Error during batch PDF upload")
+        return jsonify({
+            "error": "An internal error occurred.",
+            "details": str(exc)
+        }), 500
 
 @main_bp.route('/upload_image_bill', methods=['POST'])
 @login_required
@@ -385,6 +470,327 @@ def upload_image_bill():
     except Exception as e:
         current_app.logger.exception("Error during image upload")
         return jsonify({"error": "An internal error occurred.", "details": str(e)}), 500
+#--------------------------------------------------------------------------------------------------------------
+#                                                                CREDITCARDS  SECTION
+#--------------------------------------------------------------------------------------------------------------
+@main_bp.route("/upload_credit_card_bill", methods=["POST"])
+@login_required
+def upload_credit_card_bill():
+    try:
+        userid = fetch_user_id_from_session()
+        if not userid:
+            return jsonify({"error": "User not authenticated"}), 403
+
+        provider = request.form.get("creditCardProvider")
+        statement_month = request.form.get("statementMonth")
+        file = request.files.get("file")
+
+        if not provider:
+            return jsonify({"error": "Missing provider"}), 400
+
+        if not statement_month:
+            return jsonify({"error": "Missing statement month"}), 400
+
+        if not file:
+            return jsonify({"error": "Missing PDF"}), 400
+
+        if provider != "amazon_visa":
+            return jsonify({"error": "Only Amazon Visa is supported for now"}), 400
+
+        if file.filename == "":
+            return jsonify({"error": "No selected file"}), 400
+
+        if not allowed_file(file.filename):
+            return jsonify({"error": "Only PDF files are accepted"}), 400
+
+        upload_dir = os.path.join(
+            current_app.config["UPLOAD_FOLDER"],
+            "credit_cards",
+            provider,
+            statement_month
+        )
+        os.makedirs(upload_dir, exist_ok=True)
+
+        safe_filename = secure_filename(file.filename)
+        pdf_path = os.path.join(upload_dir, safe_filename)
+        file.save(pdf_path)
+
+        #transactions = parse_amazon_visa_statement(pdf_path)
+        parsed = parse_amazon_visa_statement(pdf_path, extract_text_from_pdf)
+
+        summary = parsed["summary"]
+        transactions = parsed["transactions"]
+
+        if not transactions:
+            return jsonify({"error": "No transactions found in PDF"}), 400
+
+        statement_id = f"{provider}_{statement_month}_{safe_filename}"
+
+        with get_session() as db_session:
+            existing_count = db_session.query(CreditCardTransaction).filter_by(
+                userid=userid,
+                statement_id=statement_id
+            ).count()
+
+            if existing_count > 0:
+                return jsonify({
+                    "error": "This credit card statement was already uploaded"
+                }), 400
+
+            for tx in transactions:
+                new_transaction = CreditCardTransaction(
+                    userid=int(userid),
+                    statement_id=statement_id,
+                    provider=provider,
+                    statement_month=statement_month,
+                    transaction_date=tx["date"],
+                    card_number=tx.get("card"),
+                    description=tx["description"],
+                    amount=float(tx["amount"]),
+                    points=tx.get("points")
+                )
+                db_session.add(new_transaction)
+
+            db_session.commit()
+
+        return jsonify({
+            "success": True,
+            "provider": provider,
+            "month": statement_month,
+            "inserted": len(transactions)
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Credit card upload failed: {str(e)}")
+        return jsonify({
+            "error": "An internal error occurred",
+            "details": str(e)
+        }), 500
+from types import SimpleNamespace
+from sqlalchemy import func
+from flask import render_template, jsonify
+from flask_login import login_required
+
+@main_bp.route("/credit_card_statements", methods=["GET"])
+@login_required
+def credit_card_statements():
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated or invalid session."}), 403
+
+    #CreditCardTransactions = models.get("CreditCardTransaction") or models.get("credit_card_transaction")
+    CreditCardTransactions = CreditCardTransaction
+    if not CreditCardTransactions:
+        return jsonify({"error": "CreditCardTransactions model not found."}), 500
+
+    with get_session() as db_session:
+        rows = (
+            db_session.query(
+                CreditCardTransactions.statement_id.label("statement_id"),
+                CreditCardTransactions.provider.label("provider"),
+                CreditCardTransactions.statement_month.label("statement_month"),
+                func.count(CreditCardTransactions.id).label("transaction_count"),
+                func.coalesce(func.sum(CreditCardTransactions.amount), 0).label("total_amount"),
+            )
+            .filter(CreditCardTransactions.userid == userid)
+            .group_by(
+                CreditCardTransactions.statement_id,
+                CreditCardTransactions.provider,
+                CreditCardTransactions.statement_month,
+            )
+            .order_by(func.max(CreditCardTransactions.transaction_date).desc())
+            .all()
+        )
+
+        statements = [
+            SimpleNamespace(
+                statement_id=row.statement_id,
+                provider=row.provider,
+                statement_month=row.statement_month,
+                transaction_count=row.transaction_count,
+                total_amount=float(row.total_amount or 0),
+            )
+            for row in rows
+        ]
+
+    return render_template("credit_card_statements.html", statements=statements)
+
+
+@main_bp.route("/credit_card_statements/<path:statement_id>", methods=["GET"])
+@login_required
+def credit_card_statement_detail(statement_id):
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated or invalid session."}), 403
+
+    #CreditCardTransactions = models.get("CreditCardTransaction") or models.get("credit_card_transaction")
+    CreditCardTransactions = CreditCardTransaction
+    if not CreditCardTransactions:
+        return jsonify({"error": "CreditCardTransactions model not found."}), 500
+
+    with get_session() as db_session:
+        transactions = (
+            db_session.query(CreditCardTransactions)
+            .filter(
+                CreditCardTransactions.userid == userid,
+                CreditCardTransactions.statement_id == statement_id,
+            )
+            .order_by(CreditCardTransactions.transaction_date.asc())
+            .all()
+        )
+
+    with get_session() as db_session:
+        split_details = (
+            db_session.query(DebtSettlementsBills)
+            .filter(
+                DebtSettlementsBills.billId == statement_id,
+                DebtSettlementsBills.created_by == userid,
+            )
+            .all()
+        )
+        split_details = [
+            SimpleNamespace(
+                paid_by_email=d.paid_by_email,
+                owed_by_email=d.owed_by_email,
+                amount=d.amount,
+            )
+            for d in split_details
+        ]
+
+    return render_template(
+        "credit_card_statement_detail.html",
+        statement_id=statement_id,
+        transactions=transactions,
+        split_details=split_details,
+    )
+
+
+@main_bp.route("/split_credit_card_statement/<path:statement_id>", methods=["GET", "POST"])
+@login_required
+def split_credit_card_statement(statement_id):
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated or invalid session."}), 403
+
+    if request.method == "GET":
+        with get_session() as db_session:
+            transactions = (
+                db_session.query(CreditCardTransaction)
+                .filter(
+                    CreditCardTransaction.userid == userid,
+                    CreditCardTransaction.statement_id == statement_id,
+                )
+                .order_by(CreditCardTransaction.transaction_date.asc())
+                .all()
+            )
+
+            logged_in_user = db_session.query(Users).filter_by(userid=userid).first()
+            if not logged_in_user:
+                return jsonify({"error": "Logged-in user not found."}), 400
+
+            logged_in_user_email = logged_in_user.username
+            logged_in_user_name = logged_in_user.firstname
+
+            # Ensure logged-in user exists in SplitInvoiceUser
+            existing = db_session.query(SplitInvoiceUser).filter_by(email=logged_in_user_email).first()
+            if not existing:
+                db_session.add(SplitInvoiceUser(email=logged_in_user_email, name=logged_in_user_name, userid=userid))
+                db_session.commit()
+
+            split_invoice_users = db_session.query(SplitInvoiceUser).filter(
+                SplitInvoiceUser.userid == userid,
+                SplitInvoiceUser.email != logged_in_user_email,
+            ).all()
+
+            total_amount = sum(tx.amount for tx in transactions)
+
+        return render_template(
+            "split_credit_card.html",
+            statement_id=statement_id,
+            transactions=transactions,
+            total_amount=total_amount,
+            split_invoice_users=split_invoice_users,
+            logged_in_user={"email": logged_in_user_email, "name": logged_in_user_name},
+        )
+
+    # POST — process the split
+    try:
+        data = request.get_json()
+        paid_by_email = data.get("paid_by")
+        tx_data = data.get("transactions", [])
+        overwrite = bool(data.get("overwrite", False))
+
+        if not paid_by_email or not tx_data:
+            return jsonify({"error": "Required fields are missing."}), 400
+
+        with get_session() as db_session:
+            logged_in_user = db_session.query(Users).filter_by(userid=userid).first()
+            if not logged_in_user:
+                return jsonify({"error": "Logged-in user not found."}), 400
+
+            payer = db_session.query(SplitInvoiceUser).filter_by(email=paid_by_email).first()
+            if not payer:
+                return jsonify({"error": "Payer not found."}), 400
+
+            existing_splits = db_session.query(DebtSettlementsBills).filter_by(
+                billId=statement_id, created_by=userid
+            ).count()
+
+            if existing_splits > 0 and not overwrite:
+                return jsonify({"split_exists": True}), 200
+
+            if overwrite:
+                db_session.query(DebtSettlementsBills).filter_by(
+                    billId=statement_id, created_by=userid
+                ).delete()
+                db_session.commit()
+
+            # Aggregate amount owed per person
+            debt_map = {}  # owed_by_email -> total amount
+            for tx in tx_data:
+                shared_with = tx.get("shared_with", [])
+                amount = float(tx.get("amount", 0))
+                if not shared_with:
+                    continue
+                amount_per_user = amount / len(shared_with)
+                for user_email in shared_with:
+                    if user_email == paid_by_email:
+                        continue  # payer's own share — no debt
+                    debt_map[user_email] = debt_map.get(user_email, 0.0) + amount_per_user
+
+            for owed_by_email, total in debt_map.items():
+                db_session.add(DebtSettlementsBills(
+                    billId=statement_id,
+                    paid_by_email=paid_by_email,
+                    owed_by_email=owed_by_email,
+                    amount=round(total, 2),
+                    settled=False,
+                    created_by=userid,
+                ))
+            db_session.commit()
+
+            calculate_overall_debts_and_insert(db_session, current_user_id=userid)
+
+        return jsonify({"success": True}), 200
+
+    except Exception as e:
+        logger.error(f"Error splitting CC statement {statement_id}: {e}")
+        return jsonify({"error": "An internal error occurred.", "details": str(e)}), 500
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @main_bp.route('/check_filename', methods=['POST'])
 @login_required
@@ -1369,33 +1775,64 @@ def analytics_spending_by_users():
 @main_bp.route("/api/analytics/overall", methods=["GET"])
 @login_required
 def analytics_overall():
+    import calendar as _cal
+    _month_order = {m.lower(): i for i, m in enumerate(_cal.month_name) if m}
+
     userid = fetch_user_id_from_session()
     if not userid:
         return jsonify({"error": "not authenticated"}), 403
 
     modelShop = models.get("groceries")
 
+    year_filter = request.args.get("year")
+    shop_filter = request.args.get("shop")
+
     with get_session() as db_session:
-        # Monthly: label "YYYY-Mon"
+        base_q = db_session.query(modelShop).filter(modelShop.userid == userid)
+        if year_filter:
+            base_q = base_q.filter(modelShop.year == int(year_filter))
+        if shop_filter:
+            base_q = base_q.filter(modelShop.shopName == shop_filter)
+
+        # Monthly totals — sort in Python so month strings are ordered by calendar position
         monthly_rows = db_session.query(
             modelShop.year,
             modelShop.month,
             func.sum(modelShop.price).label("total")
-        ).filter_by(userid=userid).group_by(
-            modelShop.year, modelShop.month
-        ).order_by(modelShop.year, modelShop.month).all()
+        ).filter(modelShop.userid == userid,
+                 *([modelShop.year == int(year_filter)] if year_filter else []),
+                 *([modelShop.shopName == shop_filter] if shop_filter else [])
+        ).group_by(modelShop.year, modelShop.month).all()
+
+        monthly_rows = sorted(
+            monthly_rows,
+            key=lambda r: (r[0], _month_order.get((r[1] or "").lower(), 0))
+        )
 
         monthly_labels = [f"{year}-{month.capitalize()}" for (year, month, _) in monthly_rows]
         monthly_values = [float(total or 0) for (_, _, total) in monthly_rows]
 
-        # Shop-wise
+        # Shop-wise totals
         shop_rows = db_session.query(
             modelShop.shopName,
             func.sum(modelShop.price).label("total")
-        ).filter_by(userid=userid).group_by(modelShop.shopName).all()
+        ).filter(modelShop.userid == userid,
+                 *([modelShop.year == int(year_filter)] if year_filter else [])
+        ).group_by(modelShop.shopName).all()
 
         shop_labels = [name for (name, _) in shop_rows]
         shop_values = [float(total or 0) for (_, total) in shop_rows]
+
+        # Available years and shops for filter dropdowns
+        year_rows = db_session.query(modelShop.year).filter(
+            modelShop.userid == userid
+        ).distinct().order_by(modelShop.year).all()
+        available_years = [r[0] for r in year_rows]
+
+        shop_name_rows = db_session.query(modelShop.shopName).filter(
+            modelShop.userid == userid
+        ).distinct().order_by(modelShop.shopName).all()
+        available_shops = [r[0] for r in shop_name_rows if r[0]]
 
         return jsonify({
             "monthly": {
@@ -1405,7 +1842,9 @@ def analytics_overall():
             "shopwise": {
                 "labels": shop_labels,
                 "values": shop_values
-            }
+            },
+            "available_years": available_years,
+            "available_shops": available_shops,
         })
 # ==========================
 #  ANALYTICS DASHBOARD
@@ -1493,8 +1932,8 @@ def api_analytics_overview():
 @login_required
 def api_analytics_frequent_items():
     """
-    Frequently bought items by shop.
-    Based on groceries table (item + shopName).
+    Frequently bought items, with optional year/shop filters.
+    Query params: ?year=2026&shop=REWE
     """
     userid = fetch_user_id_from_session()
     if not userid:
@@ -1504,28 +1943,32 @@ def api_analytics_frequent_items():
     if not modelShop:
         return jsonify({"error": "groceries model not found"}), 500
 
+    year_filter = request.args.get("year")
+    shop_filter = request.args.get("shop")
+
     with get_session() as db_session:
-        rows = db_session.query(
+        q = db_session.query(
             modelShop.item,
-            modelShop.shopName,
             func.count().label("count"),
             func.coalesce(func.sum(modelShop.price), 0).label("total_cost")
         ).filter(
-            modelShop.userid == userid
-        ).group_by(
-            modelShop.item,
-            modelShop.shopName
-        ).all()
+            modelShop.userid == userid,
+            ~modelShop.item.ilike("%pfand%"),
+            ~modelShop.item.ilike("%banderole%"),
+            ~modelShop.item.ilike("%pfandartikel%"),
+        )
 
-        result = []
-        for item, shopName, count, total_cost in rows:
-            result.append({
-                "item": item,
-                "shopName": shopName,
-                "count": int(count or 0),
-                "total_cost": float(total_cost or 0)
-            })
+        if year_filter:
+            q = q.filter(modelShop.year == int(year_filter))
+        if shop_filter:
+            q = q.filter(modelShop.shopName == shop_filter)
 
+        rows = q.group_by(modelShop.item).order_by(func.count().desc()).all()
+
+        result = [
+            {"item": item, "count": int(count or 0), "total_cost": float(total_cost or 0)}
+            for item, count, total_cost in rows
+        ]
         return jsonify(result)
 
 
@@ -2743,35 +3186,6 @@ def mark_related_debts_as_settled(db_session, paid_by, owed_by):
 
 
 
-from datetime import date
-from sqlalchemy import and_, or_, func, cast, Integer, Date
-import calendar
-
-MONTH_NUM_TO_NAME = {i: calendar.month_name[i].lower() for i in range(1, 13)}
-
-def _split_ym(ym: str) -> tuple[int, int]:
-    y, m = ym.split("-")
-    return int(y), int(m)
-
-def _ym_iter(y1: int, m1: int, y2: int, m2: int):
-    y, m = y1, m1
-    while (y < y2) or (y == y2 and m <= m2):
-        yield y, m
-        m += 1
-        if m == 13:
-            m = 1
-            y += 1
-
-def _parse_month_str(ym: str) -> tuple[date, date]:
-    y, m = _split_ym(ym)
-    start = date(y, m, 1)
-    # first day of next month
-    end = date(y + (m // 12), (m % 12) + 1, 1)
-    return start, end
-
-def _year_eq(col, year_int: int):
-    # robust: works if YEAR column is INT or stored as TEXT
-    return or_(cast(col, Integer) == year_int, col == str(year_int))
 
 def get_filtered_bill_ids(db_session, userid: int, shop: str | None,
                           month: str | None, start: str | None, end: str | None) -> tuple[set[str], bool]:
@@ -2798,25 +3212,25 @@ def get_filtered_bill_ids(db_session, userid: int, shop: str | None,
     # ---- TIME via (year, month) ----
     ym_time_clause = None
     if month:
-        y, m = _split_ym(month)
+        y, m = split_ym(month)
         ym_time_clause = and_(
-            _year_eq(groceries.year, y),
+            year_eq(groceries.year, y),
             func.lower(func.trim(groceries.month)) == MONTH_NUM_TO_NAME[m]
         )
     elif start or end:
         if start:
-            ys, ms = _split_ym(start)
+            ys, ms = split_ym(start)
         else:
             ys, ms = 1900, 1
         if end:
-            ye, me = _split_ym(end)
+            ye, me = split_ym(end)
         else:
             ye, me = 2999, 12
 
         ors = []
-        for y, m in _ym_iter(ys, ms, ye, me):
+        for y, m in ym_iter(ys, ms, ye, me):
             ors.append(and_(
-                _year_eq(groceries.year, y),
+                year_eq(groceries.year, y),
                 func.lower(func.trim(groceries.month)) == MONTH_NUM_TO_NAME[m]
             ))
         ym_time_clause = or_(*ors) if ors else None
@@ -2835,15 +3249,15 @@ def get_filtered_bill_ids(db_session, userid: int, shop: str | None,
     if not bill_ids and (month or start or end):
         date_filters = list(shop_user_filters)
         if month:
-            s, e = _parse_month_str(month)
+            s, e = parse_month_str(month)
             date_filters.append(cast(groceries.date, Date) >= s)
             date_filters.append(cast(groceries.date, Date) < e)
         else:
             if start:
-                s, _ = _parse_month_str(start)
+                s, _ = parse_month_str(start)
                 date_filters.append(cast(groceries.date, Date) >= s)
             if end:
-                _, e = _parse_month_str(end)
+                _, e = parse_month_str(end)
                 date_filters.append(cast(groceries.date, Date) < e)
 
         rows = db_session.query(groceries.billId).filter(*date_filters).distinct().all()
@@ -2857,77 +3271,6 @@ def get_filtered_bill_ids(db_session, userid: int, shop: str | None,
     return bill_ids, any_filter
 
 
-
-# ---------- CONSTANTS ----------
-SHEET_ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls', 'tsv'}
-
-
-# ---------- HELPERS ----------
-def is_allowed_sheet(filename: str) -> bool:
-    """Check if the uploaded file extension is one of the allowed sheet types."""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in SHEET_ALLOWED_EXTENSIONS
-
-
-def normalize_shop_name(raw_shop: str) -> str:
-    """Trim + lowercase the shop name for consistent grouping and billId."""
-    return (raw_shop or "").strip().lower()
-
-
-def normalize_date_string(raw_date: str) -> str:
-    """
-    Normalize dates like '06.08.2025', '14.08-2025', '6/8/2025' into ISO 'YYYY-MM-DD'.
-    """
-    if not raw_date:
-        raise ValueError("Missing date")
-    cleaned = str(raw_date).strip()
-    cleaned = cleaned.replace('-', '.').replace('/', '.')
-    parts = [p for p in cleaned.split('.') if p]
-    if len(parts) != 3:
-        raise ValueError(f"Unrecognized date: {raw_date}")
-    day_str, month_str, year_str = parts
-    day, month, year = int(day_str), int(month_str), int(year_str)
-    return f"{year:04d}-{month:02d}-{day:02d}"
-
-
-def get_month_name_from_iso(iso_date: str) -> str:
-    """Return month name (lowercase) from ISO date string."""
-    dt = datetime.strptime(iso_date, "%Y-%m-%d")
-    return dt.strftime("%B").lower()
-
-
-def collapse_whitespace(text: str) -> str:
-    """Collapse internal whitespace/newlines in strings like 'geschenk\\npapier' -> 'geschenk papier'."""
-    return re.sub(r'\s+', ' ', (text or '')).strip()
-
-
-def float_from_cell(value) -> float:
-    """
-    Convert common spreadsheet number strings to float (handles comma decimal).
-    Returns 0.0 for blanks or unparsable values.
-    """
-    if value is None or value == '':
-        return 0.0
-    try:
-        return float(str(value).replace(',', '.'))
-    except Exception:
-        return 0.0
-
-
-def build_items_signature(rows_for_signature):
-    """
-    Build a stable signature string for duplicate detection within (shop, date) groups.
-    Includes item, quantity, price and pricePerKg.
-    """
-    normalized_rows = []
-    for row_dict in rows_for_signature:
-        item_name = collapse_whitespace(row_dict.get('item'))
-        quantity_val = float(row_dict.get('quantity') or 0)
-        price_val = float(row_dict.get('price') or 0)
-        price_per_kg_val = row_dict.get('pricePerKg')
-        price_per_kg_val = float(price_per_kg_val) if price_per_kg_val not in (None, "", "None") else 0.0
-        normalized_rows.append(f"{item_name.lower()}|{quantity_val:g}|{price_val:.2f}|{price_per_kg_val:.3f}")
-    normalized_rows.sort()
-    return ";".join(normalized_rows)
 
 
 def fetch_existing_signatures_for_group(db_session, user_id: int, shop_name: str, date_iso: str):
@@ -2952,7 +3295,7 @@ def fetch_existing_signatures_for_group(db_session, user_id: int, shop_name: str
                              for bill_id, row_list in rows_by_bill_id.items()}
     return signatures_by_bill_id
 
-
+'''
 def next_available_bill_id(existing_bill_ids_for_base, base_bill_id: str) -> str:
     """Return base bill id or suffixed version base_1, base_2, ... if conflicts exist."""
     if base_bill_id not in existing_bill_ids_for_base:
@@ -2960,7 +3303,7 @@ def next_available_bill_id(existing_bill_ids_for_base, base_bill_id: str) -> str
     suffix_index = 1
     while f"{base_bill_id}_{suffix_index}" in existing_bill_ids_for_base:
         suffix_index += 1
-    return f"{base_bill_id}_{suffix_index}"
+    return f"{base_bill_id}_{suffix_index}" '''
 
 from sqlalchemy import bindparam
 
@@ -2993,3 +3336,9 @@ def _normalize_bill_ids_to_str(ids):
             seen.add(s)
             uniq.append(s)
     return uniq
+
+
+@main_bp.route("/analytics", methods=["GET"])
+@login_required
+def analytics_page():
+    return render_template("analytics.html")
