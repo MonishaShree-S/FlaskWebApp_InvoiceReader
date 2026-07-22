@@ -1,0 +1,178 @@
+/* Dashboard Layout */
+
+.dashboard-actions {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.action-section {
+    margin-top: 18px;
+}
+
+.section-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 170px);
+    justify-content: center;
+    gap: 10px;
+}
+
+.action-grid.two-buttons {
+    grid-template-columns: repeat(2, 190px);
+}
+
+.action-grid.one-button {
+    grid-template-columns: 190px;
+}
+
+.action-grid button {
+    width: 100%;
+    margin: 0;
+}
+
+.welcome-title {
+    color: #444;
+    font-size: 4rem;
+    font-weight: 700;
+}
+
+.welcome-name {
+    color: #c28f8f;
+    font-family: Georgia, serif;
+}
+
+/* Forms */
+
+#upload-section,
+#upload-batch-section,
+#upload-image-section,
+#upload-sheet-section,
+#upload-credit-card-section,
+#view-section {
+    text-align: left;
+}
+
+/* When forms open, make dashboard behave like a normal page */
+.dashboard-container {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+
+    max-width: 720px !important;
+    margin: 40px auto !important;
+    padding: 24px !important;
+}
+
+/* Compact upload/view panels */
+#upload-section,
+#upload-batch-section,
+#upload-image-section,
+#upload-sheet-section,
+#upload-credit-card-section,
+#view-section {
+    max-width: 560px;
+    margin: 24px auto 0 auto;
+    padding: 18px;
+    background: rgba(255, 255, 255, 0.78);
+    border-radius: 10px;
+    text-align: left;
+}
+
+/* Smaller form spacing */
+#upload-section h2,
+#upload-batch-section h2,
+#upload-image-section h2,
+#upload-sheet-section h2,
+#upload-credit-card-section h2,
+#view-section h2 {
+    font-size: 1.5rem;
+    margin-bottom: 18px;
+}
+
+.dashboard-container label {
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.dashboard-container input[type="text"],
+.dashboard-container input[type="file"],
+.dashboard-container input[type="date"],
+.dashboard-container input[type="month"],
+.dashboard-container select {
+    padding: 8px;
+    margin-bottom: 12px;
+}
+.dashboard-layout {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+
+.dashboard-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+}
+
+.dashboard-content {
+    flex: 1;
+}
+
+.menu-group {
+    margin-bottom: 25px;
+}
+
+.menu-group h5 {
+    text-align: left;
+    margin-bottom: 10px;
+}
+
+.dashboard-sidebar button {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+}
+.workspace-layout {
+    display: flex;
+    gap: 35px;
+    align-items: flex-start;
+}
+
+.workspace-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+
+.workspace-sidebar button {
+    width: 100%;
+    margin: 0 0 12px 0;
+}
+
+.workspace-content {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 20px;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+
+#upload-section,
+#upload-batch-section,
+#upload-image-section,
+#upload-sheet-section,
+#upload-credit-card-section,
+#view-section {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}

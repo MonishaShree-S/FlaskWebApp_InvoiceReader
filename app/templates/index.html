@@ -5,89 +5,83 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
     <title>Upload PDF or View Data</title>
-    <style>
-        .container {
-            max-width: 800px;
-            margin: 20px auto;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        h1, h2 {
-            color: #333;
-        }
-        .options {
-            margin-bottom: 20px;
-        }
-        .options h2 {
-            margin-top: 0;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            margin-right: 10px;
-            border: none;
-            background-color: #007bff;
-            color: #fff;
-            border-radius: 4px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        form {
-            margin-top: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-        }
-        input[type="text"], input[type="file"], input[type="submit"], input[type="date"] {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        input[type="submit"] {
-            background-color: #28a745;
-            color: #fff;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        input[type="submit"]:hover {
-            background-color: #218838;
-        }
-        .message {
-            margin-top: 10px;
-            font-weight: bold;
-        }
-        .error {
-            color: red;
-        }
-        .success {
-            color: green;
-        }
-    </style>
+
 </head>
 <body>
     {% include 'user_icon.html' %}
     <div class="dashboard-container">
-        <h1>Hello, {{ current_user.firstname }}!</h1>
 
-        <div class="options">
-            <h2>What would you like to do?</h2>
-            <button id="upload-btn">Upload a File</button>
+        <h1 class="welcome-title">
+            Hello, <span class="welcome-name">{{ current_user.firstname }}</span>!
+        </h1>
+
+        <div id="landing-actions" class="options dashboard-actions">
+    <h2>What would you like to do?</h2>
+
+    <div class="action-section">
+        <div class="section-title">Invoices</div>
+        <div class="action-grid">
+            <button id="upload-btn">Upload PDF</button>
+            <button id="upload-batch-btn">Upload Batch</button>
             <button id="upload-image-btn">Upload Image</button>
             <button id="upload-sheet-btn">Upload Sheet</button>
             <button id="view-btn">View Invoices</button>
-            <button id="view-balance-btn" onclick="location.href='{{ url_for('main.view_balances') }}'">View Balances</button>
         </div>
+    </div>
 
+    <div class="action-section">
+        <div class="section-title">Credit Cards</div>
+        <div class="action-grid two-buttons">
+            <button id="upload-credit-card-btn">Upload Statement</button>
+            <button id="view-credit-card-btn">View Statements</button>
+        </div>
+    </div>
+
+    <div class="action-section">
+        <div class="section-title">Balances</div>
+        <div class="action-grid one-button">
+            <button id="view-balance-btn"
+                    onclick="location.href='{{ url_for('main.view_balances') }}'">
+                View Balances
+            </button>
+        </div>
+    </div>
+
+    <div class="action-section">
+        <div class="section-title">Budget & Insights</div>
+        <div class="action-grid">
+            <button onclick="location.href='{{ url_for('budgeting.budgeting_dashboard') }}'">
+                Budget Ledger
+            </button>
+            <button onclick="location.href='{{ url_for('main.analytics_page') }}'">
+                Analytics
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="workspace" class="workspace-layout" style="display:none;">
+
+    <div class="workspace-sidebar">
+        <button type="button" id="side-upload-btn">Upload PDF</button>
+        <button type="button" id="side-upload-batch-btn">Upload Batch</button>
+        <button type="button" id="side-upload-image-btn">Upload Image</button>
+        <button type="button" id="side-upload-sheet-btn">Upload Sheet</button>
+        <button type="button" id="side-view-btn">View Invoices</button>
+
+        <hr>
+
+        <button type="button" id="side-upload-credit-card-btn">Upload Credit Card Bill</button>
+        <button type="button" id="side-view-credit-card-btn">View Credit Card Bills</button>
+
+        <hr>
+
+        <button type="button" id="side-view-balance-btn">View Balances</button>
+    </div>
+
+    <div class="workspace-content">
         <div id="upload-section" style="display: none;">
             <h2>Upload a PDF</h2>
             <form id="upload-form" action="{{ url_for('main.upload_file') }}" method="post" enctype="multipart/form-data">
@@ -128,12 +122,66 @@
                 <input type="hidden" class="year" name="year">
 
                 <label for="file">Upload PDF:</label>
-                <input type="file" id="file" name="file" required><br><br>
+                <input type="file" id="file" name="file" accept=".pdf" required>
+
+                <small class="form-text text-muted">
+                  Bill ID will be created automatically from the PDF filename.
+                </small>
+
+                <br><br>
 
                 <input type="submit" value="Upload">
             </form>
         </div>
-        <!-- Upload Image Section -->
+        <!-- Upload MULTIPLE PDFs Section -->
+        <div id="upload-batch-section" style="display: none;">
+          <h2>Upload Multiple PDFs</h2>
+
+          <form id="upload-batch-form" enctype="multipart/form-data">
+            <label for="BatchShopName">Shop Name:</label>
+            <select id="BatchShopName" name="NameOfTheShop" class="form-control" required>
+              <option value="">Select Shop</option>
+              <option value="Rewe">Rewe</option>
+              <option value="Kaufland">Kaufland</option>
+              <option value="Woolworth">Woolworth</option>
+              <option value="DM">DM</option>
+              <option value="Rossmann">Rossmann</option>
+              <option value="Edeka">Edeka</option>
+              <option value="Lidl">Lidl</option>
+              <option value="EuroShop">EuroShop</option>
+              <option value="Asia Might">Asia Might</option>
+              <option value="Others">Others</option>
+            </select>
+
+            <br>
+
+            <label for="batchFiles">Upload PDFs:</label>
+            <input type="file" id="batchFiles" name="files" accept=".pdf" multiple required>
+
+            <small class="form-text text-muted">
+              Each uploaded PDF filename becomes its Bill ID.
+            </small>
+
+            <br><br>
+
+            <input type="submit" value="Upload Batch">
+          </form>
+
+          <div id="batch-upload-message" class="message" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- Duplicate confirmation modal -->
+        <div id="duplicate-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+          <div style="background:#fff;border-radius:8px;padding:28px;max-width:480px;width:90%;box-shadow:0 4px 24px rgba(0,0,0,0.2);">
+            <h5 style="margin-top:0;">Possible Duplicate Bill</h5>
+            <p id="duplicate-modal-msg" style="margin-bottom:20px;"></p>
+            <div style="display:flex;gap:12px;justify-content:flex-end;">
+              <button id="dup-skip-btn" style="padding:8px 18px;border:1px solid #999;border-radius:4px;background:#f5f5f5;color:#333;cursor:pointer;">Skip (it's a duplicate)</button>
+              <button id="dup-force-btn" style="padding:8px 18px;border:none;border-radius:4px;background:#3a6ea5;color:#fff;cursor:pointer;">Insert as different bill</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Upload Image Section -->
         <div id="upload-image-section" style="display: none;">
         <h2>Upload Bill Image</h2>
@@ -168,7 +216,7 @@
         </div>
 
         <!-- Upload Sheet Section -->
-            <div id="upload-sheet-section" style="display: none;">
+        <div id="upload-sheet-section" style="display: none;">
               <h2>Upload a Sheet (CSV/XLSX/XLS/TSV)</h2>
               <form id="upload-sheet-form" enctype="multipart/form-data">
                 <p class="mb-2">
@@ -181,7 +229,7 @@
 
               <!-- Result message area -->
               <div id="sheet-upload-message" class="message" style="margin-top:10px;"></div>
-            </div>
+        </div>
 
         <!-- View Invoices Section -->
         <div id="view-section" style="display: none;">
@@ -216,6 +264,49 @@
             </form>
 
         </div>
+        <!-- Upload Credit Card Section -->
+    <div id="upload-credit-card-section" style="display:none;">
+    <h2>Upload Credit Card Bill</h2>
+
+    <form id="upload-credit-card-form" enctype="multipart/form-data">
+
+        <label for="creditCardProvider">Credit Card:</label>
+        <select id="creditCardProvider"
+                name="creditCardProvider"
+                class="form-control"
+                required>
+            <option value="">Select Credit Card</option>
+            <option value="amazon_visa">Amazon Visa</option>
+            <option value="other">Other</option>
+        </select>
+
+        <br>
+
+        <label for="statementMonth">Statement Month:</label>
+        <input type="month"
+               id="statementMonth"
+               name="statementMonth"
+               required>
+
+        <label for="creditCardFile">Upload PDF:</label>
+        <input type="file"
+               id="creditCardFile"
+               name="file"
+               accept=".pdf"
+               required>
+
+        <br>
+
+        <input type="submit" value="Upload Credit Card Bill">
+    </form>
+
+    <div id="credit-card-upload-message"
+         class="message"
+         style="margin-top:10px;"></div>
+    </div>
+    </div>
+    </div>
+
         <!-- Modal -->
 <div class="modal fade" id="billExistsModal" tabindex="-1" role="dialog" aria-labelledby="billExistsModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" role="document">
@@ -286,7 +377,17 @@
             document.getElementById("upload-section").style.display = "block";
             document.getElementById("view-section").style.display = "none";
         });
+        document.getElementById("upload-btn").addEventListener("click", function() {
 
+    document.getElementById("landing-actions").style.display = "none";
+    document.querySelector(".welcome-title").style.display = "none";
+
+    document.getElementById("workspace").style.display = "flex";
+
+    document.getElementById("upload-section").style.display = "block";
+
+    document.getElementById("view-section").style.display = "none";
+});
         document.getElementById("upload-image-btn").addEventListener("click", function() {
             document.getElementById("upload-section").style.display = "block";
             document.getElementById("view-section").style.display = "none";
@@ -298,7 +399,20 @@
         document.getElementById("view-balance-btn").addEventListener("click", function() {
             document.getElementById("view-balance-section").style.display = "block";
         });
+function openWorkspace(sectionId) {
+    document.getElementById("landing-actions").style.display = "none";
+    document.querySelector(".welcome-title").style.display = "none";
 
+    const container = document.querySelector(".dashboard-container");
+    container.classList.add("workspace-open");
+
+    document.getElementById("workspace").style.display = "flex";
+
+    hideAllSections();
+
+    const section = document.getElementById(sectionId);
+    if (section) section.style.display = "block";
+}
 
         // Feature 4: Check if the filename already exists
         document.getElementById("check-filename-btn").addEventListener("click", function() {
@@ -576,6 +690,182 @@
     });
   });
 </script>
+    <!-- Upload Multiple PDFS -->
+    <script>
+document.getElementById("upload-batch-btn").addEventListener("click", function () {
+    document.getElementById("upload-section").style.display = "none";
+    document.getElementById("view-section").style.display = "none";
+    document.getElementById("upload-sheet-section").style.display = "none";
+    document.getElementById("upload-batch-section").style.display = "block";
+});
+
+function showBatchResult(data, originalFormData, messageDiv) {
+    let html = "";
+
+    if (data.inserted_bills && data.inserted_bills.length) {
+        html += "<strong>Inserted:</strong><ul>";
+        data.inserted_bills.forEach(b => { html += `<li>${b.billId}</li>`; });
+        html += "</ul>";
+    }
+    if (data.skipped_duplicates && data.skipped_duplicates.length) {
+        html += "<strong>Skipped duplicates:</strong><ul>";
+        data.skipped_duplicates.forEach(b => { html += `<li>${b.filename || b.billId} — same as ${b.billId}</li>`; });
+        html += "</ul>";
+    }
+    if (data.errors && data.errors.length) {
+        html += "<strong>Errors:</strong><ul>";
+        data.errors.forEach(e => { html += `<li>${e.filename || e.billId || "Unknown"}: ${e.reason}</li>`; });
+        html += "</ul>";
+    }
+
+    messageDiv.innerHTML = html || "No files processed.";
+    messageDiv.className = "message success";
+
+    if (data.needs_confirmation && data.needs_confirmation.length) {
+        // Walk through each confirmation one at a time
+        const queue = [...data.needs_confirmation];
+        const forceFilenames = [];
+
+        function processNext() {
+            if (!queue.length) {
+                // Done — re-submit with confirmed force-inserts if any
+                if (forceFilenames.length) {
+                    const fd = new FormData(document.getElementById("upload-batch-form"));
+                    forceFilenames.forEach(f => fd.append("force_insert_filenames", f));
+                    messageDiv.innerHTML = "<em>Re-uploading confirmed bills…</em>";
+                    fetch("/upload_batch", { method: "POST", body: fd })
+                        .then(r => r.json())
+                        .then(d2 => showBatchResult(d2, null, messageDiv))
+                        .catch(() => { messageDiv.textContent = "Network error on re-upload."; });
+                }
+                return;
+            }
+
+            const item = queue.shift();
+            const modal = document.getElementById("duplicate-modal");
+            const msg   = document.getElementById("duplicate-modal-msg");
+            msg.innerHTML = `<strong>${item.filename}</strong> has the same date and total <strong>€${item.total}</strong> as existing bill <strong>${item.conflicting_billId}</strong>.<br><br>Is this the same bill (duplicate) or a genuinely different bill?`;
+            modal.style.display = "flex";
+
+            document.getElementById("dup-skip-btn").onclick = () => {
+                modal.style.display = "none";
+                processNext();
+            };
+            document.getElementById("dup-force-btn").onclick = () => {
+                forceFilenames.push(item.filename);
+                modal.style.display = "none";
+                processNext();
+            };
+        }
+        processNext();
+        return; // don't redirect yet — wait for confirmations
+    }
+
+    if (data.redirect) {
+        const hasErrors = data.errors && data.errors.length > 0;
+        const delay = hasErrors ? 8000 : 1500;
+        if (hasErrors) {
+            messageDiv.innerHTML += `<p style="color:#c0392b;margin-top:8px;">Redirecting in 8 seconds&hellip;</p>`;
+        }
+        setTimeout(() => { window.location.href = data.redirect; }, delay);
+    }
+}
+
+document.getElementById("upload-batch-form").addEventListener("submit", function (event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const messageDiv = document.getElementById("batch-upload-message");
+
+    fetch("/upload_batch", { method: "POST", body: formData })
+    .then(async response => {
+        const data = await response.json();
+        if (!response.ok) {
+            messageDiv.textContent = data.error || "Batch upload failed.";
+            messageDiv.className = "message error";
+            return;
+        }
+        showBatchResult(data, formData, messageDiv);
+    })
+    .catch(error => {
+        console.error("Batch upload error:", error);
+        messageDiv.textContent = "Network error.";
+        messageDiv.className = "message error";
+    });
+});
+</script>
+<script>
+        document.getElementById("upload-credit-card-btn")
+.addEventListener("click", function () {
+
+    document.getElementById("upload-section").style.display = "none";
+    document.getElementById("upload-batch-section").style.display = "none";
+    document.getElementById("upload-image-section").style.display = "none";
+    document.getElementById("upload-sheet-section").style.display = "none";
+    document.getElementById("view-section").style.display = "none";
+
+    document.getElementById("upload-credit-card-section").style.display = "block";
+});
+    document.getElementById("upload-credit-card-form")
+.addEventListener("submit", async function(e){
+
+    e.preventDefault();
+
+    const formData = new FormData(this);
+
+    const response = await fetch("/upload_credit_card_bill", {
+        method: "POST",
+        body: formData
+    });
+
+    const data = await response.json();
+
+    const msg = document.getElementById(
+        "credit-card-upload-message"
+    );
+
+    if (data.error) {
+        msg.className = "message error";
+        msg.textContent = data.error;
+    } else {
+        msg.className = "message success";
+        msg.textContent = "Credit card statement uploaded successfully.";
+    }
+});
+
+    document.getElementById("view-credit-card-btn").addEventListener("click", function () {
+    window.location.href = "/credit_card_statements";
+});
+    document.getElementById("side-view-balance-btn").onclick = function () {
+    window.location.href = "{{ url_for('main.view_balances') }}";
+};
+
+document.getElementById("side-view-credit-card-btn").onclick = function () {
+    window.location.href = "/credit_card_statements";
+};
+    document.getElementById("side-upload-btn").onclick = function () {
+    openWorkspace("upload-section");
+};
+
+document.getElementById("side-upload-batch-btn").onclick = function () {
+    openWorkspace("upload-batch-section");
+};
+
+document.getElementById("side-upload-image-btn").onclick = function () {
+    openWorkspace("upload-image-section");
+};
+
+document.getElementById("side-upload-sheet-btn").onclick = function () {
+    openWorkspace("upload-sheet-section");
+};
+
+document.getElementById("side-view-btn").onclick = function () {
+    openWorkspace("view-section");
+};
+
+document.getElementById("side-upload-credit-card-btn").onclick = function () {
+    openWorkspace("upload-credit-card-section");
+};
+</script>
 <!-- ✅ Added working logic for Upload Image (toggle + fetch submit) -->
 <script>
 (function () {
@@ -657,6 +947,133 @@
       }
     });
   }
+})();
+</script>
+<script>
+(function () {
+    function resetButton(id) {
+        const oldBtn = document.getElementById(id);
+        if (!oldBtn) return null;
+
+        const newBtn = oldBtn.cloneNode(true);
+        newBtn.removeAttribute("onclick");
+        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+        return newBtn;
+    }
+
+    const buttonIds = [
+        "upload-btn",
+        "upload-batch-btn",
+        "upload-image-btn",
+        "upload-sheet-btn",
+        "view-btn",
+        "upload-credit-card-btn",
+        "view-credit-card-btn",
+        "view-balance-btn",
+        "side-upload-btn",
+        "side-upload-batch-btn",
+        "side-upload-image-btn",
+        "side-upload-sheet-btn",
+        "side-view-btn",
+        "side-upload-credit-card-btn",
+        "side-view-credit-card-btn",
+        "side-view-balance-btn"
+    ];
+
+    buttonIds.forEach(resetButton);
+
+    function hideAllSections() {
+        [
+            "upload-section",
+            "upload-batch-section",
+            "upload-image-section",
+            "upload-sheet-section",
+            "view-section",
+            "upload-credit-card-section"
+        ].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = "none";
+        });
+    }
+
+    function openWorkspace(sectionId) {
+        document.getElementById("landing-actions").style.display = "none";
+
+        const title = document.querySelector(".welcome-title");
+        if (title) title.style.display = "none";
+
+        document.querySelector(".dashboard-container").classList.add("workspace-open");
+        document.getElementById("workspace").style.display = "flex";
+
+        hideAllSections();
+
+        const section = document.getElementById(sectionId);
+        if (section) section.style.display = "block";
+    }
+
+    document.getElementById("upload-btn").onclick = function () {
+        openWorkspace("upload-section");
+    };
+
+    document.getElementById("upload-batch-btn").onclick = function () {
+        openWorkspace("upload-batch-section");
+    };
+
+    document.getElementById("upload-image-btn").onclick = function () {
+        openWorkspace("upload-image-section");
+    };
+
+    document.getElementById("upload-sheet-btn").onclick = function () {
+        openWorkspace("upload-sheet-section");
+    };
+
+    document.getElementById("view-btn").onclick = function () {
+        openWorkspace("view-section");
+    };
+
+    document.getElementById("upload-credit-card-btn").onclick = function () {
+        openWorkspace("upload-credit-card-section");
+    };
+
+    document.getElementById("view-credit-card-btn").onclick = function () {
+        window.location.href = "/credit_card_statements";
+    };
+
+    document.getElementById("view-balance-btn").onclick = function () {
+        window.location.href = "{{ url_for('main.view_balances') }}";
+    };
+
+    document.getElementById("side-upload-btn").onclick = function () {
+        openWorkspace("upload-section");
+    };
+
+    document.getElementById("side-upload-batch-btn").onclick = function () {
+        openWorkspace("upload-batch-section");
+    };
+
+    document.getElementById("side-upload-image-btn").onclick = function () {
+        openWorkspace("upload-image-section");
+    };
+
+    document.getElementById("side-upload-sheet-btn").onclick = function () {
+        openWorkspace("upload-sheet-section");
+    };
+
+    document.getElementById("side-view-btn").onclick = function () {
+        openWorkspace("view-section");
+    };
+
+    document.getElementById("side-upload-credit-card-btn").onclick = function () {
+        openWorkspace("upload-credit-card-section");
+    };
+
+    document.getElementById("side-view-credit-card-btn").onclick = function () {
+        window.location.href = "/credit_card_statements";
+    };
+
+    document.getElementById("side-view-balance-btn").onclick = function () {
+        window.location.href = "{{ url_for('main.view_balances') }}";
+    };
 })();
 </script>
 </body>

@@ -1,0 +1,587 @@
+<!-- Flaskapp/budgeting.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Ledger</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+    --paper:#F7F3EC;
+    --paper-line:#E3DCCB;
+    --ink:#2B2620;
+    --ink-soft:#6B6256;
+    --ledger-green:#3E5C45;
+    --ledger-green-soft:#E7EEE6;
+    --warn-amber:#B8761A;
+    --warn-amber-soft:#F7ECD9;
+    --over-red:#9B3B30;
+    --over-red-soft:#F5E4E0;
+    --rule:#D8CFBC;
+}
+
+body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Spectral', Georgia, serif;
+}
+
+.ledger-wrap{
+    max-width:1080px;
+    margin:0 auto;
+    padding:32px 20px 80px;
+}
+
+.ledger-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    border-bottom:3px double var(--ink);
+    padding-bottom:14px;
+    margin-bottom:6px;
+}
+.ledger-header h1{
+    font-family:'Spectral', Georgia, serif;
+    font-weight:700;
+    font-size:2.1rem;
+    letter-spacing:.01em;
+    margin:0;
+}
+.ledger-header .month-tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.85rem;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+}
+.ledger-sub{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.78rem;
+    color:var(--ink-soft);
+    letter-spacing:.04em;
+    margin-bottom:28px;
+}
+
+.alert-ledger{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.88rem;
+    border-radius:3px;
+    border:1px solid;
+    padding:12px 16px;
+    margin-bottom:24px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+.alert-ledger.danger{ background:var(--over-red-soft); border-color:var(--over-red); color:var(--over-red); }
+.alert-ledger.warning{ background:var(--warn-amber-soft); border-color:var(--warn-amber); color:var(--warn-amber); }
+.alert-ledger .icon{ font-size:1.1rem; }
+
+.receipt-card{
+    background:#fff;
+    border:1px solid var(--rule);
+    border-radius:2px;
+    padding:22px 26px;
+    margin-bottom:24px;
+}
+.receipt-card h2{
+    font-size:1.1rem;
+    font-weight:600;
+    margin:0 0 4px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+}
+.receipt-card .card-note{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.74rem;
+    color:var(--ink-soft);
+    margin-bottom:18px;
+    letter-spacing:.02em;
+}
+
+.row-equal{ display:flex; gap:24px; flex-wrap:wrap; }
+.row-equal > .col-flex{ flex:1 1 420px; min-width:0; }
+
+.cat-row{
+    display:grid;
+    grid-template-columns: 150px 1fr 92px;
+    align-items:center;
+    gap:14px;
+    padding:9px 0;
+    border-bottom:1px dashed var(--rule);
+}
+.cat-row:last-child{ border-bottom:none; }
+.cat-name{
+    font-size:.86rem;
+    font-weight:600;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.cat-gauge{
+    position:relative;
+    height:14px;
+    background:var(--paper-line);
+    border-radius:7px;
+    overflow:hidden;
+}
+.cat-gauge-fill{
+    position:absolute; left:0; top:0; bottom:0;
+    border-radius:7px;
+    transition:width .5s ease;
+}
+.cat-gauge-fill.ok{ background:var(--ledger-green); }
+.cat-gauge-fill.warning{ background:var(--warn-amber); }
+.cat-gauge-fill.over{ background:var(--over-red); }
+.cat-gauge-fill.no_budget{ background:#A9A096; }
+.cat-amount{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.8rem;
+    text-align:right;
+    white-space:nowrap;
+}
+.cat-amount .of-limit{ color:var(--ink-soft); }
+.pill{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.62rem;
+    padding:1px 6px;
+    border-radius:8px;
+    margin-left:6px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+}
+.pill.over{ background:var(--over-red-soft); color:var(--over-red); }
+.pill.warning{ background:var(--warn-amber-soft); color:var(--warn-amber); }
+.pill.no_budget{ background:#EFEBE3; color:var(--ink-soft); }
+
+.item-line{
+    display:grid;
+    grid-template-columns: 1fr 70px 80px 80px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.78rem;
+    padding:6px 0;
+    border-bottom:1px dotted var(--rule);
+}
+.item-line.head{
+    color:var(--ink-soft);
+    font-size:.66rem;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    border-bottom:1px solid var(--ink);
+    padding-bottom:8px;
+}
+.item-line span{ text-align:right; }
+.item-line span:first-child{ text-align:left; }
+
+.reco{
+    border-left:3px solid var(--ink-soft);
+    padding:8px 14px;
+    margin-bottom:10px;
+    font-size:.86rem;
+    background:#FBF9F4;
+}
+.reco.high{ border-color:var(--over-red); }
+.reco.medium{ border-color:var(--warn-amber); }
+.reco.low{ border-color:var(--ledger-green); }
+
+.budget-form-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+}
+.budget-form-row select, .budget-form-row input{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.82rem;
+    border:1px solid var(--rule);
+    border-radius:3px;
+    padding:7px 10px;
+    background:#fff;
+}
+.budget-form-row select{ flex:1 1 220px; }
+.budget-form-row input[type="number"]{ width:120px; }
+.btn-ledger{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.78rem;
+    background:var(--ledger-green);
+    color:#fff;
+    border:none;
+    border-radius:3px;
+    padding:8px 16px;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+}
+.btn-ledger:hover{ background:#2E4734; color:#fff; }
+
+.budget-chip{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.75rem;
+    background:var(--ledger-green-soft);
+    color:var(--ledger-green);
+    border-radius:14px;
+    padding:5px 10px 5px 12px;
+    margin:0 8px 8px 0;
+}
+.budget-chip button{
+    border:none;
+    background:none;
+    color:var(--ledger-green);
+    font-weight:700;
+    cursor:pointer;
+    padding:0 2px;
+}
+
+.next-month-list{ list-style:none; padding:0; margin:0; }
+.next-month-list li{
+    display:flex;
+    justify-content:space-between;
+    padding:7px 0;
+    border-bottom:1px dotted var(--rule);
+    font-size:.85rem;
+}
+.next-month-list .months-bought{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.68rem;
+    color:var(--ink-soft);
+}
+.next-month-cat-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.7rem;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+    margin-top:18px;
+    margin-bottom:4px;
+}
+.grand-total-line{
+    border-top:3px double var(--ink);
+    margin-top:14px;
+    padding-top:12px;
+    display:flex;
+    justify-content:space-between;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:.95rem;
+}
+
+.empty-note{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.8rem;
+    color:var(--ink-soft);
+    padding:10px 0;
+}
+
+.back-home{
+    position:fixed; top:14px; left:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.78rem;
+    z-index:999;
+}
+.back-home a{ color:var(--ink); text-decoration:none; }
+
+@media (max-width: 700px){
+    .item-line, .item-line.head{ grid-template-columns: 1fr 50px 60px 60px; font-size:.7rem;}
+    .cat-row{ grid-template-columns: 100px 1fr 76px; }
+}
+</style>
+</head>
+<body>
+{% include 'user_icon.html' %}
+<div class="back-home"><a href="{{ url_for('main.index') }}">&larr; Home</a></div>
+
+<div class="ledger-wrap">
+
+    <div class="ledger-header">
+        <h1>Budget Ledger</h1>
+        <span class="month-tag" id="month-tag">loading...</span>
+    </div>
+    <div class="ledger-sub">spending by category &middot; thresholds &middot; what to cut &middot; next month's list</div>
+
+    <div id="banner-zone"></div>
+
+    <div class="row-equal">
+        <div class="col-flex">
+            <div class="receipt-card">
+                <h2>This month, by category</h2>
+                <div class="card-note">spent vs. budget</div>
+                <div id="category-rows"><div class="empty-note">Loading category spend...</div></div>
+            </div>
+        </div>
+        <div class="col-flex">
+            <div class="receipt-card">
+                <h2>Spend trend</h2>
+                <div class="card-note">last 6 months, total grocery spend</div>
+                <canvas id="trend-chart" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="receipt-card">
+        <h2>Set your budgets</h2>
+        <div class="card-note">a monthly limit per category &mdash; you'll get a banner above when you're close or over</div>
+        <div class="budget-form-row">
+            <select id="budget-category"></select>
+            <input type="number" id="budget-limit" placeholder="Monthly limit (€)" min="0" step="1">
+            <input type="number" id="budget-warn" placeholder="Warn at % (default 90)" min="1" max="100">
+            <button class="btn-ledger" id="save-budget-btn">Save budget</button>
+        </div>
+        <div id="budget-chips"></div>
+    </div>
+
+    <div class="row-equal">
+        <div class="col-flex">
+            <div class="receipt-card">
+                <h2>Most bought items</h2>
+                <div class="card-note">last 6 months, ranked by how often you buy them</div>
+                <div class="item-line head">
+                    <span>item</span><span>times</span><span>avg &euro;</span><span>total &euro;</span>
+                </div>
+                <div id="frequent-items-list"><div class="empty-note">Loading...</div></div>
+            </div>
+        </div>
+        <div class="col-flex">
+            <div class="receipt-card">
+                <h2>Where to cut</h2>
+                <div class="card-note">heuristic suggestions, not financial advice</div>
+                <div id="recommendations-list"><div class="empty-note">Loading...</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="receipt-card">
+        <h2>Next month's list</h2>
+        <div class="card-note">items bought in at least 2 of the last 4 months, with last paid price</div>
+        <div id="next-month-list"><div class="empty-note">Loading...</div></div>
+        <div class="grand-total-line" id="next-month-total" style="display:none;">
+            <span>Estimated total</span><span>&euro;0.00</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+const fmtEUR = (n) => `€${Number(n || 0).toFixed(2)}`;
+
+function monthLabel(year, month){
+    return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${year}`;
+}
+
+async function loadBudgetStatus(){
+    const res = await fetch('/api/budgeting/status');
+    const data = await res.json();
+
+    document.getElementById('month-tag').textContent = monthLabel(data.year, data.month);
+
+    const bannerZone = document.getElementById('banner-zone');
+    bannerZone.innerHTML = '';
+    if (data.banner){
+        const div = document.createElement('div');
+        div.className = `alert-ledger ${data.banner.level}`;
+        const icon = data.banner.level === 'danger' ? '⚠' : '⏱';
+        div.innerHTML = `<span class="icon">${icon}</span><span>${data.banner.message}</span>`;
+        bannerZone.appendChild(div);
+    }
+
+    const rowsWrap = document.getElementById('category-rows');
+    rowsWrap.innerHTML = '';
+    if (!data.categories || data.categories.length === 0){
+        rowsWrap.innerHTML = '<div class="empty-note">No purchases recorded yet this month.</div>';
+        return;
+    }
+
+    data.categories.forEach(cat => {
+        const pct = cat.limit ? Math.min(100, cat.pct_used) : (cat.spent > 0 ? 100 : 0);
+        const fillClass = cat.status === 'no_budget' ? 'no_budget' : cat.status;
+        const limitText = cat.limit ? `<span class="of-limit"> / €${cat.limit.toFixed(0)}</span>` : '<span class="of-limit"> · no budget</span>';
+        const pillHtml = (cat.status === 'over' || cat.status === 'warning' || cat.status === 'no_budget')
+            ? `<span class="pill ${cat.status}">${cat.status === 'no_budget' ? 'no budget' : cat.status}</span>` : '';
+
+        const row = document.createElement('div');
+        row.className = 'cat-row';
+        row.innerHTML = `
+            <div class="cat-name">${cat.category}</div>
+            <div class="cat-gauge"><div class="cat-gauge-fill ${fillClass}" style="width:${pct}%"></div></div>
+            <div class="cat-amount">€${cat.spent.toFixed(2)}${limitText}${pillHtml}</div>
+        `;
+        rowsWrap.appendChild(row);
+    });
+}
+
+async function loadTrendChart(){
+    try{
+        const res = await fetch('/api/analytics/overall');
+        const data = await res.json();
+        const labels = (data.monthly && data.monthly.labels) ? data.monthly.labels.slice(-6) : [];
+        const values = (data.monthly && data.monthly.values) ? data.monthly.values.slice(-6) : [];
+
+        new Chart(document.getElementById('trend-chart'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: '#3E5C45',
+                    borderRadius: 3,
+                    maxBarThickness: 36
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#E3DCCB' }, ticks: { font: { family: 'IBM Plex Mono', size: 10 } } },
+                    x: { grid: { display: false }, ticks: { font: { family: 'IBM Plex Mono', size: 10 } } }
+                }
+            }
+        });
+    }catch(e){ console.error('trend chart failed', e); }
+}
+
+async function loadFrequentItems(){
+    const res = await fetch('/api/budgeting/frequent_items?limit=12&months=6');
+    const items = await res.json();
+    const wrap = document.getElementById('frequent-items-list');
+    wrap.innerHTML = '';
+    if (!items.length){
+        wrap.innerHTML = '<div class="empty-note">No items yet.</div>';
+        return;
+    }
+    items.forEach(it => {
+        const line = document.createElement('div');
+        line.className = 'item-line';
+        line.innerHTML = `<span>${it.item}</span><span>${it.purchase_count}</span><span>${it.avg_price.toFixed(2)}</span><span>${it.total_spent.toFixed(2)}</span>`;
+        wrap.appendChild(line);
+    });
+}
+
+async function loadRecommendations(){
+    const res = await fetch('/api/budgeting/recommendations');
+    const recos = await res.json();
+    const wrap = document.getElementById('recommendations-list');
+    wrap.innerHTML = '';
+    if (!recos.length){
+        wrap.innerHTML = '<div class="empty-note">Nothing stands out yet — set a few budgets above to get tailored suggestions.</div>';
+        return;
+    }
+    recos.forEach(r => {
+        const div = document.createElement('div');
+        div.className = `reco ${r.severity}`;
+        div.textContent = r.detail;
+        wrap.appendChild(div);
+    });
+}
+
+async function loadNextMonthList(){
+    const res = await fetch('/api/budgeting/next_month_list');
+    const data = await res.json();
+    const wrap = document.getElementById('next-month-list');
+    wrap.innerHTML = '';
+
+    const categories = Object.keys(data.categories || {});
+    if (!categories.length){
+        wrap.innerHTML = '<div class="empty-note">Not enough purchase history yet to predict next month\'s list. Keep uploading bills!</div>';
+        document.getElementById('next-month-total').style.display = 'none';
+        return;
+    }
+
+    categories.forEach(cat => {
+        const label = document.createElement('div');
+        label.className = 'next-month-cat-label';
+        label.textContent = cat;
+        wrap.appendChild(label);
+
+        const ul = document.createElement('ul');
+        ul.className = 'next-month-list';
+        data.categories[cat].forEach(entry => {
+            const li = document.createElement('li');
+            const priceText = entry.estimated_price != null ? fmtEUR(entry.estimated_price) : '—';
+            li.innerHTML = `<span>${entry.item} <span class="months-bought">(${entry.months_bought}/${entry.lookback_months} mo)</span></span><span>${priceText}</span>`;
+            ul.appendChild(li);
+        });
+        wrap.appendChild(ul);
+    });
+
+    const totalLine = document.getElementById('next-month-total');
+    totalLine.style.display = 'flex';
+    totalLine.querySelector('span:last-child').textContent = fmtEUR(data.estimated_total);
+}
+
+async function loadCategoryOptions(){
+    const res = await fetch('/api/budgeting/categories');
+    const cats = await res.json();
+    const select = document.getElementById('budget-category');
+    select.innerHTML = '';
+    cats.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
+        select.appendChild(opt);
+    });
+}
+
+async function loadBudgetChips(){
+    const res = await fetch('/api/budgeting/budgets');
+    const budgets = await res.json();
+    const wrap = document.getElementById('budget-chips');
+    wrap.innerHTML = '';
+    budgets.forEach(b => {
+        const chip = document.createElement('span');
+        chip.className = 'budget-chip';
+        chip.innerHTML = `${b.category}: €${b.monthly_limit.toFixed(0)} <button data-id="${b.id}" title="Remove budget">&times;</button>`;
+        chip.querySelector('button').addEventListener('click', async (e) => {
+            await fetch(`/api/budgeting/budgets/${e.target.dataset.id}`, { method: 'DELETE' });
+            await refreshAll();
+        });
+        wrap.appendChild(chip);
+    });
+}
+
+document.getElementById('save-budget-btn').addEventListener('click', async () => {
+    const category = document.getElementById('budget-category').value;
+    const monthly_limit = parseFloat(document.getElementById('budget-limit').value);
+    const warn_threshold_pct = parseInt(document.getElementById('budget-warn').value) || 90;
+
+    if (!category || isNaN(monthly_limit) || monthly_limit < 0){
+        alert('Pick a category and enter a valid monthly limit.');
+        return;
+    }
+
+    await fetch('/api/budgeting/budgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category, monthly_limit, warn_threshold_pct })
+    });
+
+    document.getElementById('budget-limit').value = '';
+    document.getElementById('budget-warn').value = '';
+    await refreshAll();
+});
+
+async function refreshAll(){
+    await Promise.all([
+        loadBudgetStatus(),
+        loadBudgetChips(),
+        loadRecommendations()
+    ]);
+}
+
+(async function init(){
+    await loadCategoryOptions();
+    await Promise.all([
+        loadBudgetStatus(),
+        loadTrendChart(),
+        loadFrequentItems(),
+        loadRecommendations(),
+        loadNextMonthList(),
+        loadBudgetChips()
+    ]);
+})();
+</script>
+</body>
+</html>

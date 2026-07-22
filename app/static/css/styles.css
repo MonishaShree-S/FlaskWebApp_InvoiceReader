@@ -33,9 +33,7 @@ body {
 .chart-card {
     background: #ffffff !important;
 }
-body {
-    background: #f5f7fb !important;
-}
+
 .sidebar {
     background: #111827 !important;
     height: 100vh;
@@ -660,7 +658,58 @@ body.modal-open {
          overflow: auto !important;
          padding-right: 0 !important;
  }
+/* Table wrapper */
+.table-wrapper {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #E8C8CF;
+}
 
+/* Header row */
+table thead tr {
+  background-color: #C2798A;
+  color: #ffffff;
+}
+
+table thead th {
+  color: #ffffff;
+  font-weight: 500;
+  padding: 10px 14px;
+}
+
+/* Odd rows */
+table tbody tr:nth-child(odd) {
+  background-color: #FBF0F2;
+  color: #4a2530;
+}
+
+/* Even rows */
+table tbody tr:nth-child(even) {
+  background-color: #F3DDE2;
+  color: #4a2530;
+}
+
+/* Cells */
+table tbody td {
+  padding: 8px 14px;
+  color: inherit;
+}
+
+/* Hover state */
+table tbody tr:hover {
+  filter: brightness(0.97);
+  transition: filter 0.15s ease;
+}
+
+/* Top summary row (Paid By / Owed By) */
+.summary-row {
+  background-color: #F3DDE2;
+  color: #4a2530;
+  border: 1px solid #E8C8CF;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
 .user-dropdown-container {
             position: relative;
             display: inline-block;
