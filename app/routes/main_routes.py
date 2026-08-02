@@ -24,7 +24,8 @@ from app.utils.route_helpers import sanitize_input, fetch_user_id_from_session,a
 import math
 from werkzeug.utils import secure_filename
 from app.services.credit_cards import parse_amazon_visa_statement
-
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
 
 # Blueprint setup
 main_bp = Blueprint('main', __name__)
@@ -1053,7 +1054,6 @@ def view_invoices_by_month():
                 paid_by = result[0].name
 
             pdf_url = url_for('static', filename=f"uploads/{record.year}/{record.month}/{filename_pdf}")
-            print("🔗 PDF URL:", pdf_url)
 
             bill_map[record.billId] = {
                 'billId': record.billId,
@@ -2755,6 +2755,112 @@ def upload_sheet_invoice():
 
     except Exception as exc:
         logger.error(f"Error during sheet upload: {str(exc)}")
+        return jsonify({'error': 'An internal error occurred.', 'details': str(exc)}), 500
+
+
+@main_bp.route('/upload_manual_bill', methods=['POST'])
+@login_required
+def upload_manual_bill():
+    """
+    Create a bill from manually typed-in items, for receipts you don't have
+    a digital copy of. Expects JSON:
+      { NameOfTheShop, datePicker, items: [{item, quantity, price}, ...] }
+    Reuses the same (shop, date) duplicate-signature logic as upload_sheet_invoice.
+    """
+    try:
+        user_id = fetch_user_id_from_session()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated or invalid session.'}), 403
+
+        GroceriesModel = models.get("groceries")
+        if not GroceriesModel:
+            return jsonify({'error': 'groceries table is not available.'}), 500
+
+        payload = request.get_json(silent=True) or {}
+        raw_shop = payload.get('NameOfTheShop')
+        raw_date = payload.get('datePicker')
+        raw_items = payload.get('items') or []
+
+        if not raw_shop or not sanitize_input(raw_shop):
+            return jsonify({'error': 'Missing or invalid shop name.'}), 400
+        if not raw_date:
+            return jsonify({'error': 'Missing date.'}), 400
+
+        try:
+            date_iso = datetime.strptime(raw_date, "%Y-%m-%d").date().isoformat()
+        except ValueError:
+            return jsonify({'error': f'Bad date value: {raw_date}'}), 400
+
+        shop_name = normalize_shop_name(raw_shop)
+
+        cleaned_items = []
+        for entry in raw_items:
+            item_name = collapse_whitespace(str(entry.get('item') or ''))
+            if not item_name:
+                continue
+            if not sanitize_input(item_name):
+                return jsonify({'error': f'Invalid characters in item name: {item_name}'}), 400
+            quantity_value = float_from_cell(entry.get('quantity')) or 1.0
+            price_value = float_from_cell(entry.get('price'))
+            cleaned_items.append({'item': item_name, 'quantity': quantity_value, 'price': price_value})
+
+        if not cleaned_items:
+            return jsonify({'error': 'Add at least one item with a name.'}), 400
+
+        month_name = get_month_name_from_iso(date_iso)
+        year_number = int(date_iso[:4])
+
+        with get_session() as db_session:
+            incoming_signature = build_items_signature(cleaned_items)
+            existing_signatures = fetch_existing_signatures_for_group(db_session, user_id, shop_name, date_iso)
+
+            if incoming_signature in existing_signatures.values():
+                duplicate_bill_id = next(
+                    (bill_id for bill_id, sig in existing_signatures.items() if sig == incoming_signature),
+                    None
+                )
+                return jsonify({
+                    'warning': f'An identical bill already exists ({duplicate_bill_id}).',
+                    'Bill_exists': True
+                }), 200
+
+            base_bill_id = f"{shop_name}_{date_iso}"
+            existing_ids_same_base = {bid for bid in existing_signatures.keys() if bid.startswith(base_bill_id)}
+            unique_bill_id = next_available_bill_id(existing_ids_same_base, base_bill_id)
+
+            total_sum = round(sum(entry['price'] for entry in cleaned_items), 2)
+
+            for entry in cleaned_items:
+                new_entry = GroceriesModel(
+                    userid=int(user_id),
+                    billId=unique_bill_id,
+                    month=month_name,
+                    year=year_number,
+                    item=entry['item'],
+                    quantity=entry['quantity'],
+                    price=entry['price'],
+                    shopName=shop_name,
+                    address='',
+                    invoiceNumber='',
+                    totalSum=total_sum,
+                    date=date_iso
+                )
+                db_session.add(new_entry)
+
+            db_session.commit()
+
+        session['billid'] = unique_bill_id
+        session['NameOfTheShop'] = shop_name
+
+        return jsonify({
+            'success': True,
+            'billId': unique_bill_id,
+            'total': total_sum,
+            'redirect': url_for('main.view_data')
+        }), 200
+
+    except Exception as exc:
+        logger.error(f"Error during manual bill entry: {str(exc)}")
         return jsonify({'error': 'An internal error occurred.', 'details': str(exc)}), 500
 ###################################################################################################################
 def sanitize_input(input_str):
