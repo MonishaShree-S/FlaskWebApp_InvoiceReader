@@ -225,7 +225,7 @@ class ImageScanner:
         telephone_number = telephone_number_match.group(0) if telephone_number_match else "Not found"
         return telephone_number
 
-    def get_Address(self):
+    def get_Address__(self):
         import re
 
         text = self.text or ""
@@ -382,6 +382,303 @@ class ImageScanner:
 
         return result
 
+    def get_Address(self):
+        """
+        Generic German address extractor.
+
+        Intended to work across shops such as:
+          - REWE
+          - Kaufland
+          - Lidl
+          - Edeka
+          - Penny
+          - Rossmann
+          - DM
+          - Woolworth
+          - EuroShop
+          - other shops
+
+        Examples:
+          Fritz-Lang-Str. 3 12627 Berlin
+          Karl-Liebknecht-Straße 13 10178 Berlin
+          Schönwalder Straße 19 13585 Berlin/Spandau
+          Hauptstraße 25 10115 Berlin
+          Bahnhofstr. 8 85049 Ingolstadt
+          Am Borsigturm 2 13507 Berlin
+        """
+
+        text = self.text or ""
+
+        if not text.strip():
+            return ""
+
+        # ---------------------------------------------------------
+        # 1. Normalize whitespace
+        # ---------------------------------------------------------
+        text = (
+            text.replace("\xa0", " ")
+            .replace("\u202f", " ")
+            .replace("\r", " ")
+            .replace("\n", " ")
+        )
+
+        text = re.sub(r"\s+", " ", text).strip()
+
+        # ---------------------------------------------------------
+        # 1.5 Kaufland-specific pattern.
+        #
+        # Kaufland receipts print the address right after the shop
+        # name as "Kaufland - <street> <house nr> <plz> <city>",
+        # immediately followed by a VAT ID with no separating label
+        # (e.g. "...16356 Ahrensfelde DE145804139 Preis EUR"). That
+        # VAT id isn't one of the generic stop_words below, so the
+        # generic cascade's lookahead never matches for Kaufland and
+        # returns "". Handle Kaufland's fixed layout directly instead.
+        # ---------------------------------------------------------
+        if "kaufland" in text.lower():
+            kaufland_pattern = re.compile(
+                r"""
+                Kaufland\s*-\s*
+                (?P<street>
+                    [A-Za-zÄÖÜäöüß0-9.'’/&\-]+
+                    (?:\s+[A-Za-zÄÖÜäöüß0-9.'’/&\-]+){0,5}
+                    \s+
+                    \d+[a-zA-Z]?
+                )
+                \s+
+                (?P<plz>\d{5})
+                \s+
+                (?P<city>
+                    [A-Za-zÄÖÜäöüß\-]+
+                    (?:/[A-Za-zÄÖÜäöüß\-]+)?
+                    (?:\s+[A-Za-zÄÖÜäöüß\-]+)?
+                )
+                (?!\S)
+                """,
+                re.IGNORECASE | re.VERBOSE,
+            )
+            m_kaufland = kaufland_pattern.search(text)
+            if m_kaufland:
+                street = re.sub(r"\s+", " ", m_kaufland.group("street")).strip()
+                plz = m_kaufland.group("plz").strip()
+                city = re.sub(r"\s+", " ", m_kaufland.group("city")).strip()
+                return f"{street} {plz} {city}"
+
+        # ---------------------------------------------------------
+        # 2. Stop words typically appearing AFTER an address.
+        #
+        # These are NOT shop-specific. They are common receipt
+        # header/footer fields.
+        # ---------------------------------------------------------
+        stop_words = (
+            r"Tel\.?|Telefon|Fax|"
+            r"UID|USt|MwSt|"
+            r"Steuer(?:-| )?Nr\.?|"
+            r"Steuernummer|"
+            r"Filiale|Markt-Nr\.?|"
+            r"Bon(?:-| )?Nr\.?|Beleg(?:-| )?Nr\.?|"
+            r"Kasse|Terminal|"
+            r"Öffnungszeiten|"
+            r"Datum|"
+            r"www\.|"
+            r"EUR|Preis"
+        )
+
+        # ---------------------------------------------------------
+        # 3. City portion
+        #
+        # We DON'T use:
+        #
+        #   [A-Za-z]+(?: [A-Za-z]+)*
+        #
+        # because that caused:
+        #
+        #   12627 Berlin Steuer-Nr
+        #
+        # to be interpreted as the city.
+        #
+        # Allow up to 4 city-name components instead.
+        # ---------------------------------------------------------
+        city_pattern = (
+            r"[A-Za-zÄÖÜäöüß\-]+"
+            r"(?:/[A-Za-zÄÖÜäöüß\-]+)?"
+            r"(?:\s+[A-Za-zÄÖÜäöüß\-]+){0,3}"
+        )
+
+        # ---------------------------------------------------------
+        # 4. Normal German street names
+        #
+        # Supports:
+        #
+        # Fritz-Lang-Str.
+        # Karl-Liebknecht-Straße
+        # Schönwalder Straße
+        # Bahnhofstr.
+        # Hauptstraße
+        # Berliner Allee
+        # Alexanderplatz
+        # ...
+        # ---------------------------------------------------------
+        street_suffix = (
+            r"(?:"
+            r"straße|strasse|str\.?|"
+            r"weg|allee|platz|ring|"
+            r"damm|ufer|gasse|"
+            r"chaussee|promenade|"
+            r"steig|pfad"
+            r")"
+        )
+
+        normal_street_pattern = re.compile(
+            rf"""
+            (?P<street>
+                (?:[A-Za-zÄÖÜäöüß0-9.'’/&\-]+\s+){{0,5}}
+                [A-Za-zÄÖÜäöüß0-9.'’/&\-]*
+                {street_suffix}
+                \s+
+                \d+[a-zA-Z]?
+            )
+            \s+
+            (?P<plz>\d{{5}})
+            \s+
+            (?P<city>{city_pattern})
+            (?=
+                \s+(?:{stop_words})\b
+                |
+                $
+            )
+            """,
+            re.IGNORECASE | re.VERBOSE,
+        )
+
+        match = normal_street_pattern.search(text)
+
+        if match:
+            street = re.sub(r"\s+", " ", match.group("street")).strip()
+            plz = match.group("plz").strip()
+            city = re.sub(r"\s+", " ", match.group("city")).strip()
+
+            return f"{street} {plz} {city}"
+
+        # ---------------------------------------------------------
+        # 5. German street names without the usual street suffix.
+        #
+        # Examples:
+        #
+        # Am Borsigturm 2
+        # An der Wuhlheide 150
+        # Auf dem Gries 20
+        # Unter den Linden 77
+        # Zum Bahnhof 4
+        # Zur Marktpassage 5
+        # ---------------------------------------------------------
+        special_street_pattern = re.compile(
+            rf"""
+            (?P<street>
+                (?:
+                    Am|
+                    An\s+der|
+                    An\s+den|
+                    Auf\s+dem|
+                    Auf\s+der|
+                    Unter\s+den|
+                    Zum|
+                    Zur|
+                    Im
+                )
+                \s+
+                [A-Za-zÄÖÜäöüß0-9.'’/&\-]+
+                (?:\s+[A-Za-zÄÖÜäöüß0-9.'’/&\-]+){{0,4}}
+                \s+
+                \d+[a-zA-Z]?
+            )
+            \s+
+            (?P<plz>\d{{5}})
+            \s+
+            (?P<city>{city_pattern})
+            (?=
+                \s+(?:{stop_words})\b
+                |
+                $
+            )
+            """,
+            re.IGNORECASE | re.VERBOSE,
+        )
+
+        match = special_street_pattern.search(text)
+
+        if match:
+            street = re.sub(r"\s+", " ", match.group("street")).strip()
+            plz = match.group("plz").strip()
+            city = re.sub(r"\s+", " ", match.group("city")).strip()
+
+            return f"{street} {plz} {city}"
+
+        # ---------------------------------------------------------
+        # 6. Generic fallback
+        #
+        # Some OCR/shop formats may have an unusual street name.
+        # First locate:
+        #
+        #       house-number + PLZ
+        #
+        # Then inspect the words immediately before it.
+        # ---------------------------------------------------------
+        fallback = re.search(
+            rf"""
+            (?P<street>
+                [A-Za-zÄÖÜäöüß0-9.'’/&\-]+
+                (?:\s+[A-Za-zÄÖÜäöüß0-9.'’/&\-]+){{0,4}}
+                \s+
+                \d+[a-zA-Z]?
+            )
+            \s+
+            (?P<plz>\d{{5}})
+            \s+
+            (?P<city>{city_pattern})
+            (?=
+                \s+(?:{stop_words})\b
+                |
+                $
+            )
+            """,
+            text,
+            re.IGNORECASE | re.VERBOSE,
+        )
+
+        if fallback:
+            street = re.sub(r"\s+", " ", fallback.group("street")).strip()
+            plz = fallback.group("plz").strip()
+            city = re.sub(r"\s+", " ", fallback.group("city")).strip()
+
+            return f"{street} {plz} {city}"
+
+        # ---------------------------------------------------------
+        # 7. Last fallback: at least return PLZ + city
+        # ---------------------------------------------------------
+        plz_city = re.search(
+            rf"""
+            \b
+            (?P<plz>\d{{5}})
+            \s+
+            (?P<city>{city_pattern})
+            (?=
+                \s+(?:{stop_words})\b
+                |
+                $
+            )
+            """,
+            text,
+            re.IGNORECASE | re.VERBOSE,
+        )
+
+        if plz_city:
+            plz = plz_city.group("plz").strip()
+            city = re.sub(r"\s+", " ", plz_city.group("city")).strip()
+
+            return f"{plz} {city}"
+
+        return ""
     def get_Address_old2(self):
         # Shop names that we want to extract addresses for
         shop_names = ['Kaufland', 'REWE']
@@ -597,13 +894,16 @@ class ImageScanner:
                 kg = euro_to_float(m_w.group(2))
                 price_per_kg = euro_to_float(m_w.group(3)) if m_w.group(3) else None
                 total = euro_to_float(m_w.group(4))
+                # Kaufland receipts usually omit "x price/kg" on the line (unlike Rewe),
+                # so derive it from total/weight when not explicitly printed.
+                if price_per_kg is None and kg:
+                    price_per_kg = total / kg
                 entry = {
                     "item": item,
-                    "quantity": round(kg, 3),
-                    "price": round(total, 2)
+                    "weight_quantity": round(kg, 3),
+                    "price": round(total, 2),
+                    "pricePerKg": round(price_per_kg, 2) if price_per_kg is not None else None,
                 }
-                if price_per_kg is not None:
-                    entry["pricePerKg"] = round(price_per_kg, 2)
                 result_list.append(entry)
                 continue
 

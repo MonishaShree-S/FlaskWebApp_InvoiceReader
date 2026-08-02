@@ -27,6 +27,7 @@
             <button id="upload-batch-btn">Upload Batch</button>
             <button id="upload-image-btn">Upload Image</button>
             <button id="upload-sheet-btn">Upload Sheet</button>
+            <button id="upload-manual-btn">Enter Manually</button>
             <button id="view-btn">View Invoices</button>
         </div>
     </div>
@@ -69,6 +70,7 @@
         <button type="button" id="side-upload-batch-btn">Upload Batch</button>
         <button type="button" id="side-upload-image-btn">Upload Image</button>
         <button type="button" id="side-upload-sheet-btn">Upload Sheet</button>
+        <button type="button" id="side-upload-manual-btn">Enter Manually</button>
         <button type="button" id="side-view-btn">View Invoices</button>
 
         <hr>
@@ -229,6 +231,75 @@
 
               <!-- Result message area -->
               <div id="sheet-upload-message" class="message" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- Enter Manually Section -->
+        <div id="upload-manual-section" style="display: none;">
+            <h2>Enter a Bill Manually</h2>
+            <p class="mb-2">For receipts you don't have digitally &mdash; type in as many or as few items as you have.</p>
+            <form id="upload-manual-form">
+                <label for="ManualShopName">Shop Name:</label>
+                <select id="ManualShopName" name="NameOfTheShop" class="form-control" required>
+                    <option value="">Select Shop</option>
+                    <option value="Rewe">Rewe</option>
+                    <option value="Kaufland">Kaufland</option>
+                    <option value="Woolworth">Woolworth</option>
+                    <option value="DM">DM</option>
+                    <option value="Rossmann">Rossmann</option>
+                    <option value="Edeka">Edeka</option>
+                    <option value="Lidl">Lidl</option>
+                    <option value="EuroShop">EuroShop</option>
+                    <option value="Asia Might">Asia Might</option>
+                    <option value="Others">Others</option>
+                </select>
+
+                <div id="manualOtherShopDiv" style="display:none; margin-top:10px;">
+                    <label for="ManualOtherShopName">Enter Shop Name:</label>
+                    <input type="text" id="ManualOtherShopName" class="form-control" placeholder="Enter shop name">
+                </div>
+                <br><br>
+
+                <label for="manualDatePicker">Select Date:</label>
+                <input type="date" id="manualDatePicker" name="datePicker" required>
+                <br><br>
+
+                <style>
+                    .dashboard-container.wide-workspace { max-width: 1100px !important; }
+                    #upload-manual-section { max-width: none; }
+                    #manual-items-table { table-layout: fixed; width: 100%; }
+                    #manual-items-table th:nth-child(1), #manual-items-table td:nth-child(1) { width: 45%; }
+                    #manual-items-table th:nth-child(2), #manual-items-table td:nth-child(2) { width: 18%; }
+                    #manual-items-table th:nth-child(3), #manual-items-table td:nth-child(3) { width: 22%; }
+                    #manual-items-table th:nth-child(4), #manual-items-table td:nth-child(4) { width: 8%; }
+                    #manual-items-table th { white-space: nowrap; }
+                    #manual-items-table td input { width: 100%; box-sizing: border-box; }
+                </style>
+                <table id="manual-items-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Quantity</th>
+                            <th>Price (&euro;)</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="manual-items-body">
+                        <tr class="manual-item-row">
+                            <td><input type="text" class="manual-item-name" placeholder="e.g. Milch" required></td>
+                            <td><input type="number" class="manual-item-qty" value="1" min="0" step="0.01"></td>
+                            <td><input type="number" class="manual-item-price" placeholder="0.00" step="0.01" required></td>
+                            <td><button type="button" class="manual-remove-row-btn">&times;</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <button type="button" id="manual-add-row-btn">+ Add Item</button>
+                <br><br>
+
+                <input type="submit" value="Save Bill">
+            </form>
+
+            <div id="manual-upload-message" class="message" style="margin-top:10px;"></div>
         </div>
 
         <!-- View Invoices Section -->
@@ -966,6 +1037,7 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
         "upload-batch-btn",
         "upload-image-btn",
         "upload-sheet-btn",
+        "upload-manual-btn",
         "view-btn",
         "upload-credit-card-btn",
         "view-credit-card-btn",
@@ -974,6 +1046,7 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
         "side-upload-batch-btn",
         "side-upload-image-btn",
         "side-upload-sheet-btn",
+        "side-upload-manual-btn",
         "side-view-btn",
         "side-upload-credit-card-btn",
         "side-view-credit-card-btn",
@@ -988,6 +1061,7 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
             "upload-batch-section",
             "upload-image-section",
             "upload-sheet-section",
+            "upload-manual-section",
             "view-section",
             "upload-credit-card-section"
         ].forEach(function (id) {
@@ -1002,7 +1076,9 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
         const title = document.querySelector(".welcome-title");
         if (title) title.style.display = "none";
 
-        document.querySelector(".dashboard-container").classList.add("workspace-open");
+        const container = document.querySelector(".dashboard-container");
+        container.classList.add("workspace-open");
+        container.classList.toggle("wide-workspace", sectionId === "upload-manual-section");
         document.getElementById("workspace").style.display = "flex";
 
         hideAllSections();
@@ -1025,6 +1101,10 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
 
     document.getElementById("upload-sheet-btn").onclick = function () {
         openWorkspace("upload-sheet-section");
+    };
+
+    document.getElementById("upload-manual-btn").onclick = function () {
+        openWorkspace("upload-manual-section");
     };
 
     document.getElementById("view-btn").onclick = function () {
@@ -1059,6 +1139,10 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
         openWorkspace("upload-sheet-section");
     };
 
+    document.getElementById("side-upload-manual-btn").onclick = function () {
+        openWorkspace("upload-manual-section");
+    };
+
     document.getElementById("side-view-btn").onclick = function () {
         openWorkspace("view-section");
     };
@@ -1074,6 +1158,127 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
     document.getElementById("side-view-balance-btn").onclick = function () {
         window.location.href = "{{ url_for('main.view_balances') }}";
     };
+})();
+</script>
+<!-- Enter Manually: dynamic rows + submit -->
+<script>
+(function () {
+    const itemsBody = document.getElementById("manual-items-body");
+    const addRowBtn = document.getElementById("manual-add-row-btn");
+    const form = document.getElementById("upload-manual-form");
+    const messageDiv = document.getElementById("manual-upload-message");
+    const shopSelect = document.getElementById("ManualShopName");
+    const otherShopDiv = document.getElementById("manualOtherShopDiv");
+    const otherShopInput = document.getElementById("ManualOtherShopName");
+
+    shopSelect.addEventListener("change", function () {
+        const isOther = shopSelect.value === "Others";
+        otherShopDiv.style.display = isOther ? "block" : "none";
+        otherShopInput.required = isOther;
+        if (!isOther) otherShopInput.value = "";
+    });
+
+    function makeRow() {
+        const row = document.createElement("tr");
+        row.className = "manual-item-row";
+        row.innerHTML = `
+            <td><input type="text" class="manual-item-name" placeholder="e.g. Milch" required></td>
+            <td><input type="number" class="manual-item-qty" value="1" min="0" step="0.01"></td>
+            <td><input type="number" class="manual-item-price" placeholder="0.00" step="0.01" required></td>
+            <td><button type="button" class="manual-remove-row-btn">&times;</button></td>
+        `;
+        return row;
+    }
+
+    addRowBtn.addEventListener("click", function () {
+        itemsBody.appendChild(makeRow());
+    });
+
+    itemsBody.addEventListener("click", function (event) {
+        if (!event.target.classList.contains("manual-remove-row-btn")) return;
+        const rows = itemsBody.querySelectorAll(".manual-item-row");
+        if (rows.length > 1) {
+            event.target.closest(".manual-item-row").remove();
+        }
+    });
+
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+
+        let shop = document.getElementById("ManualShopName").value;
+        const date = document.getElementById("manualDatePicker").value;
+
+        if (shop === "Others") {
+            shop = otherShopInput.value.trim();
+            if (!shop) {
+                messageDiv.textContent = "Please enter the shop name.";
+                messageDiv.className = "message error";
+                return;
+            }
+        }
+
+        const items = [];
+        itemsBody.querySelectorAll(".manual-item-row").forEach(function (row) {
+            const name = row.querySelector(".manual-item-name").value.trim();
+            const qty = row.querySelector(".manual-item-qty").value;
+            const price = row.querySelector(".manual-item-price").value;
+            if (name && price !== "") {
+                items.push({ item: name, quantity: qty || 1, price: price });
+            }
+        });
+
+        if (!items.length) {
+            messageDiv.textContent = "Add at least one item with a name and price.";
+            messageDiv.className = "message error";
+            return;
+        }
+
+        fetch("/upload_manual_bill", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ NameOfTheShop: shop, datePicker: date, items: items })
+        })
+        .then(async (res) => {
+            if (res.redirected || !(res.headers.get("content-type") || "").includes("application/json")) {
+                messageDiv.textContent = "Your session has expired. Please log in again.";
+                messageDiv.className = "message error";
+                setTimeout(() => { window.location.href = "/?next=" + encodeURIComponent("/index"); }, 1500);
+                return;
+            }
+
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                messageDiv.textContent = data.error || "Failed to save bill.";
+                messageDiv.className = "message error";
+                return;
+            }
+
+            if (data.Bill_exists) {
+                messageDiv.textContent = data.warning || "An identical bill already exists.";
+                messageDiv.className = "message error";
+                return;
+            }
+
+            messageDiv.textContent = `Bill ${data.billId} saved (total €${data.total}).`;
+            messageDiv.className = "message success";
+
+            form.reset();
+            otherShopDiv.style.display = "none";
+            otherShopInput.required = false;
+            itemsBody.innerHTML = "";
+            itemsBody.appendChild(makeRow());
+
+            if (data.redirect) {
+                setTimeout(() => { window.location.href = data.redirect; }, 1200);
+            }
+        })
+        .catch((err) => {
+            console.error("Manual bill save error:", err);
+            messageDiv.textContent = "Network error.";
+            messageDiv.className = "message error";
+        });
+    });
 })();
 </script>
 </body>
