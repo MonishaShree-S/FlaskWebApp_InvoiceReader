@@ -29,6 +29,7 @@
             <button id="upload-sheet-btn">Upload Sheet</button>
             <button id="upload-manual-btn">Enter Manually</button>
             <button id="view-btn">View Invoices</button>
+            <button id="search-items-btn">Search Items</button>
         </div>
     </div>
 
@@ -72,6 +73,7 @@
         <button type="button" id="side-upload-sheet-btn">Upload Sheet</button>
         <button type="button" id="side-upload-manual-btn">Enter Manually</button>
         <button type="button" id="side-view-btn">View Invoices</button>
+        <button type="button" id="side-search-items-btn">Search Items</button>
 
         <hr>
 
@@ -300,6 +302,31 @@
             </form>
 
             <div id="manual-upload-message" class="message" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- Search Items Section -->
+        <div id="search-items-section" style="display: none;">
+            <h2>Search Items</h2>
+            <form id="search-items-form">
+                <label for="searchItemInput">Item name:</label>
+                <input type="text" id="searchItemInput" name="q" placeholder="e.g. Milch" autocomplete="off">
+                <button type="submit" class="custom-btn">Search</button>
+            </form>
+
+            <div id="search-items-message" class="message" style="margin-top:10px;"></div>
+
+            <table id="search-items-table" style="width:100%; margin-top:15px; display:none; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Item</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Price (&euro;)</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Date Purchased</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Shop</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Bill</th>
+                    </tr>
+                </thead>
+                <tbody id="search-items-body"></tbody>
+            </table>
         </div>
 
         <!-- View Invoices Section -->
@@ -1048,6 +1075,8 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
         "side-upload-sheet-btn",
         "side-upload-manual-btn",
         "side-view-btn",
+        "search-items-btn",
+        "side-search-items-btn",
         "side-upload-credit-card-btn",
         "side-view-credit-card-btn",
         "side-view-balance-btn"
@@ -1063,6 +1092,7 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
             "upload-sheet-section",
             "upload-manual-section",
             "view-section",
+            "search-items-section",
             "upload-credit-card-section"
         ].forEach(function (id) {
             const el = document.getElementById(id);
@@ -1111,6 +1141,10 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
         openWorkspace("view-section");
     };
 
+    document.getElementById("search-items-btn").onclick = function () {
+        openWorkspace("search-items-section");
+    };
+
     document.getElementById("upload-credit-card-btn").onclick = function () {
         openWorkspace("upload-credit-card-section");
     };
@@ -1145,6 +1179,10 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
 
     document.getElementById("side-view-btn").onclick = function () {
         openWorkspace("view-section");
+    };
+
+    document.getElementById("side-search-items-btn").onclick = function () {
+        openWorkspace("search-items-section");
     };
 
     document.getElementById("side-upload-credit-card-btn").onclick = function () {
@@ -1278,6 +1316,98 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
             messageDiv.textContent = "Network error.";
             messageDiv.className = "message error";
         });
+    });
+})();
+</script>
+<!-- Search Items -->
+<script>
+(function () {
+    const form = document.getElementById("search-items-form");
+    const input = document.getElementById("searchItemInput");
+    const messageDiv = document.getElementById("search-items-message");
+    const table = document.getElementById("search-items-table");
+    const tbody = document.getElementById("search-items-body");
+
+    if (!form) return;
+
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+
+        const q = input.value.trim();
+        if (!q) {
+            messageDiv.textContent = "Please enter an item name to search.";
+            messageDiv.className = "message error";
+            table.style.display = "none";
+            return;
+        }
+
+        messageDiv.textContent = "Searching...";
+        messageDiv.className = "message";
+        table.style.display = "none";
+
+        fetch(`/api/search_items?q=${encodeURIComponent(q)}`)
+            .then(async (res) => {
+                const data = await res.json();
+                if (!res.ok || data.error) {
+                    messageDiv.textContent = data.error || "Search failed.";
+                    messageDiv.className = "message error";
+                    return;
+                }
+
+                const results = data.results || [];
+                tbody.innerHTML = "";
+
+                if (!results.length) {
+                    messageDiv.textContent = `No purchases found for "${q}".`;
+                    messageDiv.className = "message";
+                    table.style.display = "none";
+                    return;
+                }
+
+                messageDiv.textContent = "";
+                results.forEach(function (r) {
+                    const row = document.createElement("tr");
+
+                    const itemCell = document.createElement("td");
+                    itemCell.textContent = r.item || "";
+                    itemCell.style.padding = "6px";
+
+                    const priceCell = document.createElement("td");
+                    priceCell.textContent = r.price != null ? r.price.toFixed(2) : "";
+                    priceCell.style.padding = "6px";
+
+                    const dateCell = document.createElement("td");
+                    dateCell.textContent = r.date_purchased || "";
+                    dateCell.style.padding = "6px";
+
+                    const shopCell = document.createElement("td");
+                    shopCell.textContent = r.shop || "";
+                    shopCell.style.padding = "6px";
+
+                    const billCell = document.createElement("td");
+                    billCell.style.padding = "6px";
+                    if (r.bill_link) {
+                        const link = document.createElement("a");
+                        link.href = r.bill_link;
+                        link.textContent = "View Bill";
+                        billCell.appendChild(link);
+                    }
+
+                    row.appendChild(itemCell);
+                    row.appendChild(priceCell);
+                    row.appendChild(dateCell);
+                    row.appendChild(shopCell);
+                    row.appendChild(billCell);
+                    tbody.appendChild(row);
+                });
+
+                table.style.display = "table";
+            })
+            .catch((err) => {
+                console.error("Search error:", err);
+                messageDiv.textContent = "Network error.";
+                messageDiv.className = "message error";
+            });
     });
 })();
 </script>

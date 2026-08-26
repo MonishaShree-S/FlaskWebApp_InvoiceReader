@@ -12,7 +12,7 @@ import os
 import pandas as pd
 #from app.services.groceries import ImageScanner
 from app.models.models import Users, models, SplitInvoiceUser, get_session, SplitInvoiceDetail, Settlements, \
-    DebtSettlements, DebtSettlementsBills,DebtSummary,SettlementLog, CreditCardTransaction
+    DebtSettlements, DebtSettlementsBills,DebtSummary,SettlementLog, CreditCardTransaction, ShoppingListItem
 #from app.utils.dataHelpers import convert_date, create_dataframe, receipt_json_to_df,is_allowed_sheet,collapse_whitespace,normalize_date_string,normalize_shop_name,float_from_cell,build_items_signature,get_month_name_from_iso,_split_ym,
 from app.utils.dataHelpers import *
 from app.utils.ReadPdf import pdf_to_jpg, extract_text_from_pdf
@@ -248,7 +248,8 @@ def upload_file():
 def upload_batch_files():
     """
     Batch PDF upload.
-    Each billId is derived from each uploaded PDF filename.
+    Each billId is derived from the date parsed off the bill's own content
+    (not the uploaded filename, which can be anything).
     """
     try:
         userid = fetch_user_id_from_session()
@@ -289,16 +290,12 @@ def upload_batch_files():
         with get_session() as db_session:
             for file in files:
                 try:
-                    date_info = extract_date_from_bill_filename(file.filename)
                     is_forced = secure_filename(file.filename) in force_filenames
 
                     result = process_one_pdf_upload(
                         file_storage=file,
                         userid=int(userid),
                         shopname=shopname,
-                        month=date_info["month"],
-                        year=date_info["year"],
-                        bill_date_str=date_info["date"],
                         db_session=db_session,
                         force_insert=is_forced
                     )
@@ -1004,6 +1001,49 @@ def view_data_by_month():
 
         session['billid'] = records[0].billId
         return redirect(url_for('main.view_data'))
+
+@main_bp.route('/api/search_items', methods=['GET'])
+@login_required
+def search_items():
+    """
+    Searches the logged-in user's purchase history by item name (substring, case-insensitive)
+    and returns item, price, date purchased, shop, and a link to that bill's details.
+    """
+    query = (request.args.get('q') or '').strip()
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({'error': 'User not authenticated or invalid session.'}), 403
+
+    if not query:
+        return jsonify({'results': []})
+
+    modelShop = models.get("groceries")
+    if not modelShop:
+        logger.error("groceries model not initialized.")
+        return jsonify({'error': 'groceries table is not available.'}), 500
+
+    with get_session() as db_session:
+        records = (
+            db_session.query(modelShop)
+            .filter(modelShop.userid == userid)
+            .filter(modelShop.item.ilike(f"%{query}%"))
+            .order_by(modelShop.date.desc())
+            .all()
+        )
+
+        results = [
+            {
+                'item': record.item,
+                'price': float(record.price) if record.price is not None else None,
+                'date_purchased': record.date.isoformat() if hasattr(record.date, 'isoformat') else record.date,
+                'shop': record.shopName,
+                'billId': record.billId,
+                'bill_link': url_for('main.view_data', billId=record.billId)
+            }
+            for record in records
+        ]
+
+        return jsonify({'results': results})
 
 @main_bp.route('/view_invoices_by_month', methods=['GET'])
 @login_required
@@ -1786,6 +1826,7 @@ def analytics_overall():
 
     year_filter = request.args.get("year")
     shop_filter = request.args.get("shop")
+    month_filter = request.args.get("month")
 
     with get_session() as db_session:
         base_q = db_session.query(modelShop).filter(modelShop.userid == userid)
@@ -1793,6 +1834,8 @@ def analytics_overall():
             base_q = base_q.filter(modelShop.year == int(year_filter))
         if shop_filter:
             base_q = base_q.filter(modelShop.shopName == shop_filter)
+        if month_filter:
+            base_q = base_q.filter(modelShop.month == month_filter.lower())
 
         # Monthly totals — sort in Python so month strings are ordered by calendar position
         monthly_rows = db_session.query(
@@ -1801,7 +1844,8 @@ def analytics_overall():
             func.sum(modelShop.price).label("total")
         ).filter(modelShop.userid == userid,
                  *([modelShop.year == int(year_filter)] if year_filter else []),
-                 *([modelShop.shopName == shop_filter] if shop_filter else [])
+                 *([modelShop.shopName == shop_filter] if shop_filter else []),
+                 *([modelShop.month == month_filter.lower()] if month_filter else [])
         ).group_by(modelShop.year, modelShop.month).all()
 
         monthly_rows = sorted(
@@ -1817,7 +1861,8 @@ def analytics_overall():
             modelShop.shopName,
             func.sum(modelShop.price).label("total")
         ).filter(modelShop.userid == userid,
-                 *([modelShop.year == int(year_filter)] if year_filter else [])
+                 *([modelShop.year == int(year_filter)] if year_filter else []),
+                 *([modelShop.month == month_filter.lower()] if month_filter else [])
         ).group_by(modelShop.shopName).all()
 
         shop_labels = [name for (name, _) in shop_rows]
@@ -1932,8 +1977,8 @@ def api_analytics_overview():
 @login_required
 def api_analytics_frequent_items():
     """
-    Frequently bought items, with optional year/shop filters.
-    Query params: ?year=2026&shop=REWE
+    Frequently bought items, with optional year/month/shop filters.
+    Query params: ?year=2026&month=july&shop=REWE
     """
     userid = fetch_user_id_from_session()
     if not userid:
@@ -1945,6 +1990,7 @@ def api_analytics_frequent_items():
 
     year_filter = request.args.get("year")
     shop_filter = request.args.get("shop")
+    month_filter = request.args.get("month")
 
     with get_session() as db_session:
         q = db_session.query(
@@ -1962,6 +2008,8 @@ def api_analytics_frequent_items():
             q = q.filter(modelShop.year == int(year_filter))
         if shop_filter:
             q = q.filter(modelShop.shopName == shop_filter)
+        if month_filter:
+            q = q.filter(modelShop.month == month_filter.lower())
 
         rows = q.group_by(modelShop.item).order_by(func.count().desc()).all()
 
@@ -1970,108 +2018,6 @@ def api_analytics_frequent_items():
             for item, count, total_cost in rows
         ]
         return jsonify(result)
-
-
-@main_bp.route("/api/analytics/overall")
-@login_required
-def api_analytics_overall():
-    """
-    Overall spending:
-      - monthly.labels: list of "YYYY-MonthName"
-      - monthly.total:  total across all shops per month
-      - monthly.shops:  { shopName: [per month values aligned with labels] }
-      - shopwise: totals per shop (all time)
-    Based on groceries table.
-    """
-    userid = fetch_user_id_from_session()
-    if not userid:
-        return jsonify({"error": "User not authenticated"}), 403
-
-    modelShop = models.get("groceries")
-    if not modelShop:
-        return jsonify({"error": "groceries model not found"}), 500
-
-    month_order = {
-        "january": 1, "february": 2, "march": 3, "april": 4,
-        "may": 5, "june": 6, "july": 7, "august": 8,
-        "september": 9, "october": 10, "november": 11, "december": 12
-    }
-
-    with get_session() as db_session:
-        # Monthly by shop
-        rows = db_session.query(
-            modelShop.year,
-            modelShop.month,
-            modelShop.shopName,
-            func.coalesce(func.sum(modelShop.price), 0).label("total")
-        ).filter(
-            modelShop.userid == userid
-        ).group_by(
-            modelShop.year,
-            modelShop.month,
-            modelShop.shopName
-        ).all()
-
-        # Collect all (year, month) and shops
-        month_keys = set()
-        shops = set()
-        tmp = {}  # ((year, month, shop) -> total)
-
-        for year, month, shop, total in rows:
-            if not year or not month:
-                continue
-            m_key = (int(year), month.lower())
-            month_keys.add(m_key)
-            shops.add(shop)
-            tmp[(int(year), month.lower(), shop)] = float(total or 0)
-
-        # Sort months chronologically
-        sorted_months = sorted(
-            month_keys,
-            key=lambda ym: (ym[0], month_order.get(ym[1], 13))
-        )
-
-        labels = []
-        for year, month in sorted_months:
-            labels.append(f"{year}-{month.capitalize()}")
-
-        # Build shop series aligned with labels
-        shops_series = {shop: [0.0] * len(labels) for shop in shops}
-        total_per_month = [0.0] * len(labels)
-
-        for idx, (year, month) in enumerate(sorted_months):
-            for shop in shops:
-                val = tmp.get((year, month, shop), 0.0)
-                shops_series[shop][idx] = val
-                total_per_month[idx] += val
-
-        # Shopwise totals (all time)
-        shopwise_rows = db_session.query(
-            modelShop.shopName,
-            func.coalesce(func.sum(modelShop.price), 0).label("total")
-        ).filter(
-            modelShop.userid == userid
-        ).group_by(
-            modelShop.shopName
-        ).all()
-
-        shopwise_labels = []
-        shopwise_values = []
-        for shop, total in shopwise_rows:
-            shopwise_labels.append(shop)
-            shopwise_values.append(float(total or 0))
-
-        return jsonify({
-            "monthly": {
-                "labels": labels,
-                "total": total_per_month,
-                "shops": shops_series  # dict: shop -> [values per label]
-            },
-            "shopwise": {
-                "labels": shopwise_labels,
-                "values": shopwise_values
-            }
-        })
 
 
 @main_bp.route("/api/analytics/spending_by_users")
@@ -2128,6 +2074,116 @@ def api_analytics_spending_by_users():
             })
 
         return jsonify(result)
+
+
+@main_bp.route('/api/planner/items', methods=['GET'])
+@login_required
+def list_planner_items():
+    """
+    List the logged-in user's shopping-list items.
+    Query params: ?include_bought=1 to include already-bought items (default: only unbought).
+    """
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    include_bought = request.args.get("include_bought") == "1"
+
+    with get_session() as db_session:
+        q = db_session.query(ShoppingListItem).filter(ShoppingListItem.userid == userid)
+        if not include_bought:
+            q = q.filter(ShoppingListItem.bought == False)  # noqa: E712
+
+        rows = q.order_by(ShoppingListItem.created_at).all()
+
+        result = [
+            {
+                "id": row.id,
+                "item": row.item,
+                "quantity": row.quantity,
+                "bought": bool(row.bought),
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+        return jsonify(result)
+
+
+@main_bp.route('/api/planner/items', methods=['POST'])
+@login_required
+def add_planner_item():
+    """
+    Add an item to the shopping list. Body: {"item": "...", "quantity": 2}
+    """
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    item_name = collapse_whitespace(str(payload.get("item") or ""))
+    if not item_name:
+        return jsonify({"error": "Item name is required."}), 400
+    if not sanitize_input(item_name):
+        return jsonify({"error": "Item name contains invalid characters."}), 400
+
+    quantity_raw = payload.get("quantity")
+    quantity_value = float_from_cell(quantity_raw) if quantity_raw not in (None, "") else None
+
+    with get_session() as db_session:
+        new_item = ShoppingListItem(
+            userid=int(userid),
+            item=item_name,
+            quantity=quantity_value,
+            bought=False,
+        )
+        db_session.add(new_item)
+        db_session.commit()
+
+        return jsonify({
+            "id": new_item.id,
+            "item": new_item.item,
+            "quantity": new_item.quantity,
+            "bought": False,
+        }), 201
+
+
+@main_bp.route('/api/planner/items/<int:item_id>/toggle_bought', methods=['POST'])
+@login_required
+def toggle_planner_item(item_id):
+    """Flip an item's bought/unbought state."""
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    with get_session() as db_session:
+        item = db_session.query(ShoppingListItem).filter_by(id=item_id, userid=userid).first()
+        if not item:
+            return jsonify({"error": "Item not found."}), 404
+
+        item.bought = not item.bought
+        item.bought_at = datetime.utcnow() if item.bought else None
+        db_session.commit()
+
+        return jsonify({"id": item.id, "bought": bool(item.bought)})
+
+
+@main_bp.route('/api/planner/items/<int:item_id>', methods=['DELETE'])
+@login_required
+def delete_planner_item(item_id):
+    """Remove an item from the shopping list entirely."""
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated"}), 403
+
+    with get_session() as db_session:
+        item = db_session.query(ShoppingListItem).filter_by(id=item_id, userid=userid).first()
+        if not item:
+            return jsonify({"error": "Item not found."}), 404
+
+        db_session.delete(item)
+        db_session.commit()
+
+        return jsonify({"success": True})
 
 
 @main_bp.route('/settlement_history', methods=['GET'])
