@@ -231,6 +231,21 @@ class Budgets(db.Model):
         return f"<Budgets(userid={self.userid}, category={self.category}, limit={self.monthly_limit})>"
 
 
+class ShoppingListItem(db.Model):
+    __tablename__ = 'ShoppingListItem'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(Integer, ForeignKey('USERDATA.userid'), nullable=False)
+    item = Column(String(200), nullable=False)
+    quantity = Column(Float, nullable=True)
+    bought = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    bought_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<ShoppingListItem(userid={self.userid}, item={self.item}, bought={self.bought})>"
+
+
 # Automap Base for dynamic models
 Base = automap_base()
 models = {}  # Shared container for dynamically reflected models

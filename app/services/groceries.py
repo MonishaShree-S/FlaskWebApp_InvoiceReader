@@ -143,66 +143,6 @@ class ImageScanner:
         items = getattr(self, "items", None) or self.get_groceries_bill()
         return round(sum(float(i.get("price", 0.0)) for i in items), 2)
 
-    def get_Total_amount_old(self):
-        # amount_pattern = r'((Total\snone\s\d+(,\d+)?)|(Total\s\d+(,\d+)?)|(Summe\s(\d+,\d+)))'
-        amount_pattern = r'Summe\s(\d+,\d+)'
-        amount_match = re.search(amount_pattern, self.text)
-        price_pattern = r"Summe (\d+) (\d{2})"
-        price_match = re.search(price_pattern, self.text)
-        summe_pattern = r"Summe (\d{1,5})\s(\d{2})"
-        summe_match = re.search(summe_pattern, self.text)
-        # Regex pattern to capture the price from "Kartenzahlung" (with a comma)
-        kartenzahlung_pattern = r"Kartenzahlung (\d{1,5}),(\d{2})"
-        kartenzahlung_match = re.search(kartenzahlung_pattern, self.text)
-
-        rewe_pattern = r"SUMME\s+EUR\s+([\d,.]+)"
-        rewe_total_match = re.search(rewe_pattern, self.text)
-
-        amount_text = None
-        summe_price = None
-        kartenzahlung_price = None
-        if amount_match:
-            amount_match = re.search(amount_pattern, self.text)
-            amount_text = amount_match.group(1) if amount_match else "None"
-            print('Amount_Total_Sum: ', amount_text)
-        elif price_match:
-            amount_text = f"{price_match.group(1)},{price_match.group(2)}"
-            print("Formatted Price:", amount_text)  # Output: 100,85
-        elif summe_match:
-            amount_text = summe_price = f"{summe_match.group(1)},{summe_match.group(2)}"
-            print("Extracted Summe Price:", amount_text)
-        elif kartenzahlung_match:
-            amount_text = kartenzahlung_price = f"{kartenzahlung_match.group(1)},{kartenzahlung_match.group(2)}"
-            print("Extracted Kartenzahlung Price:", amount_text)
-            # Compare values and return correct one
-            if summe_price and kartenzahlung_price:
-                if summe_price == kartenzahlung_price:
-                    print("Prices match. Returning:", summe_price)
-                    return summe_price
-                else:
-                    print("Prices do not match. Returning value from Kartenzahlung:", kartenzahlung_price)
-                    return kartenzahlung_price
-            elif kartenzahlung_price:
-                print("Only Kartenzahlung price found. Returning:", kartenzahlung_price)
-                amount_text = kartenzahlung_price
-            elif summe_price:
-                print("Only Summe price found. Returning:", summe_price)
-                amount_text = summe_price
-        elif rewe_total_match:
-            amount_text = rewe_total_match.group(1) if rewe_total_match else "Not Found"
-            print("Rewe total Price:", amount_text)
-
-        if 'none' in amount_text:
-            total_amount = amount_text.replace('Total none', '')
-        else:
-            total_amount = amount_text.replace('Total', '')
-        try:
-            total_amount = total_amount.replace(',', '.')
-            total_amount = float(total_amount)
-        except ValueError:
-            total_amount = 0.0
-        return total_amount
-
     def get_invoice(self):
         invoice_number = None
         invoice_number_pattern = r"([D][E][0-9]{9})"
@@ -224,163 +164,6 @@ class ImageScanner:
         telephone_number_match = re.search(telephone_number_pattern, self.text)
         telephone_number = telephone_number_match.group(0) if telephone_number_match else "Not found"
         return telephone_number
-
-    def get_Address__(self):
-        import re
-
-        text = self.text or ""
-        if not text.strip():
-            return ""
-
-        # Flatten whitespace
-        text = re.sub(r'\s+', ' ', text).strip()
-
-        # Remove obvious footer/payment area
-        text = re.split(
-            r'Kaufland Card XTRA:|Kartenzahlung -K-U-N-D-E-N-B-E-L-E-G-|Terminal-ID|DEBIT MASTERCARD|EMV-AID|Bon:|Filiale:|Kasse:',
-            text,
-            maxsplit=1,
-            flags=re.IGNORECASE
-        )[0].strip()
-
-        # Find "12345 City"
-        plz_city_match = re.search(
-            r'\b(\d{5}\s+[A-Za-zÄÖÜäöüß\-]+(?:\s+[A-Za-zÄÖÜäöüß\-]+)*)\b',
-            text,
-            re.IGNORECASE
-        )
-        if not plz_city_match:
-            return ""
-
-        plz_city = plz_city_match.group(1)
-        plz_start = plz_city_match.start()
-
-        # Look backward before PLZ to find a street + house number ending right before PLZ
-        prefix = text[:plz_start].strip()
-
-        street_match = re.search(
-            r'([A-Za-zÄÖÜäöüß0-9\.\-\/]+(?:\s+[A-Za-zÄÖÜäöüß0-9\.\-\/]+)*\s+\d+[a-zA-Z]?)\s*$',
-            prefix,
-            re.IGNORECASE
-        )
-        if not street_match:
-            return plz_city
-
-        street = street_match.group(1).strip()
-
-        # Keep only the tail from the last sentence break if OCR glued text before it
-        # e.g. "points for this purchase. Karl-Liebknecht-Straße 13"
-        street = re.split(r'[.:;!?]\s+', street)[-1].strip()
-
-        # Extra cleanup for common junk prefixes
-        junk_prefixes = [
-            r'points for this purchase\.?\s*',
-            r'You earned \d+ points for this purchase\.?\s*',
-        ]
-        for jp in junk_prefixes:
-            street = re.sub(jp, '', street, flags=re.IGNORECASE).strip()
-
-        return f"{street} {plz_city}".strip()
-    def get_Address_(self):
-
-        text = self.text or ""
-        if not text.strip():
-            return ""
-
-        # Normalize whitespace but keep line boundaries useful
-        normalized_text = re.sub(r'[ \t]+', ' ', text).strip()
-        flattened_text = re.sub(r'\s+', ' ', text).strip()
-
-        # -----------------------------
-        # 1) Generic regex-first extraction
-        # Works better for flattened OCR receipts
-        # Example: Karl-Liebknecht-Straße 13 10178 Berlin
-        # -----------------------------
-        address_patterns = [
-            # Street + house number + PLZ + city
-            r'([A-Za-zÄÖÜäöüß0-9\.\-\/]+\s+(?:Straße|Str\.|Strasse|Weg|Allee|Platz|Ring|Damm|Ufer|Gasse)'
-            r'(?:\s+[A-Za-zÄÖÜäöüß0-9\.\-\/]+)*\s+\d+[a-zA-Z]?\s+\d{5}\s+[A-Za-zÄÖÜäöüß\-\s]+)',
-
-            # More generic: street words + house number + PLZ + city
-            r'([A-Za-zÄÖÜäöüß0-9\.\-\/]+(?:\s+[A-Za-zÄÖÜäöüß0-9\.\-\/]+){0,5}\s+\d+[a-zA-Z]?\s+\d{5}\s+[A-Za-zÄÖÜäöüß\-\s]+)'
-        ]
-
-        # Cut off obvious payment/footer areas before matching
-        footer_cut_patterns = [
-            r'Kaufland Card XTRA:',
-            r'Kartenzahlung',
-            r'Terminal-ID',
-            r'DEBIT MASTERCARD',
-            r'EMV-AID',
-            r'Bon:',
-            r'Filiale:',
-            r'Kasse:'
-        ]
-
-        header_part = flattened_text
-        for marker in footer_cut_patterns:
-            split_result = re.split(marker, header_part, maxsplit=1, flags=re.IGNORECASE)
-            if len(split_result) > 1:
-                header_part = split_result[0].strip()
-                break
-
-        for pattern in address_patterns:
-            match = re.search(pattern, header_part, re.IGNORECASE)
-            if match:
-                return match.group(1).strip(" ,.-")
-
-        # -----------------------------
-        # 2) Fallback to existing shop-based logic
-        # -----------------------------
-        shop_names = ['Kaufland', 'REWE']
-
-        start_index = -1
-        for shop in shop_names:
-            found = re.search(r'\b' + re.escape(shop) + r'\b', normalized_text, re.IGNORECASE)
-            if found:
-                start_index = found.end()
-                break
-
-        if start_index == -1:
-            # Last fallback: try direct PLZ + city capture only
-            plz_city_match = re.search(
-                r'([A-Za-zÄÖÜäöüß0-9\.\-\/\s]+?\d+[a-zA-Z]?\s+\d{5}\s+[A-Za-zÄÖÜäöüß\-\s]+)',
-                header_part,
-                re.IGNORECASE
-            )
-            return plz_city_match.group(1).strip(" ,.-") if plz_city_match else ""
-
-        end_keywords = ["Tel", "UID", "USt", "Preis", "EUR"]
-        end_index = len(normalized_text)
-
-        for keyword in end_keywords:
-            found_index = normalized_text.find(keyword, start_index)
-            if found_index != -1:
-                end_index = min(end_index, found_index)
-
-        address_text = normalized_text[start_index:end_index].strip()
-
-        lines = [line.strip(" ,.-") for line in address_text.splitlines() if line.strip()]
-
-        city_pattern = re.compile(
-            r'\b(?:Berlin|Adlershof|Ingolstadt|Spandau|Munich|Hamburg|Cologne|Frankfurt|'
-            r'Stuttgart|Dusseldorf|Dresden|Leipzig|Hannover)\b',
-            re.IGNORECASE
-        )
-
-        address_lines = []
-        for line in lines:
-            address_lines.append(line)
-            if city_pattern.search(line):
-                break
-
-        result = ', '.join(address_lines).strip(" ,.-")
-
-        # If fallback still looks wrong, return empty string instead of huge garbage
-        if len(result) > 120:
-            return ""
-
-        return result
 
     def get_Address(self):
         """
@@ -679,54 +462,7 @@ class ImageScanner:
             return f"{plz} {city}"
 
         return ""
-    def get_Address_old2(self):
-        # Shop names that we want to extract addresses for
-        shop_names = ['Kaufland', 'REWE']
 
-        # Identify which shop is in the receipt
-        start_index = -1
-        shop_name = None
-
-        for shop in shop_names:
-            if shop in self.text:
-                start_index = self.text.find(shop) + len(shop)
-                shop_name = shop
-                break
-
-        if start_index == -1:
-            return "Shop name not found"
-
-        # Locate the end of the address (usually before another section like Tel, UID, etc.)
-        end_keywords = ["Tel", "UID"]
-        end_index = len(self.text)  # Default to end of text if no keyword is found
-
-        for keyword in end_keywords:
-            found_index = self.text.find(keyword, start_index)
-            if found_index != -1:
-                end_index = found_index
-                break
-
-        # Extract the raw address text
-        # Extract address text
-        address_text = self.text[start_index:end_index].strip()
-
-        # Split into lines and clean up spaces
-        lines = [line.strip() for line in address_text.splitlines() if line.strip()]
-
-        # Regex pattern to detect city names
-        city_pattern = re.compile(
-            r'\b(?:Berlin|Adlershof|Ingolstadt|Spandau|Munich|Hamburg|Cologne|Frankfurt|Stuttgart|Dusseldorf|Dresden|Leipzig|Hannover)\b',
-            re.IGNORECASE
-        )
-
-        # Initialize address extraction logic
-        address_lines = []
-        for line in lines:
-            address_lines.append(line)  # Collect all address lines
-            if city_pattern.search(line):
-                break  # Stop once a city name is found
-
-        return ', '.join(address_lines)
 
     def get_items(self):
         Address = self.get_Address()
@@ -1296,11 +1032,22 @@ class ImageScanner:
         if not isinstance(text, str) or not text.strip():
             return None
         for pat in self.DATE_PATTERNS:
-            for m in re.finditer(pat, text):
+            compiled = re.compile(pat)
+            pos = 0
+            while True:
+                m = compiled.search(text, pos)
+                if not m:
+                    break
                 d, mth, y = m.groups()
                 try:
                     return self.normalize_ymd(d, mth, y)
                 except ValueError:
+                    # This candidate's digits don't form a real date (e.g. it
+                    # grabbed a trailing "00" off a serial number as the day).
+                    # Retry from one character in, not m.end() -- finditer's
+                    # non-overlapping matches would otherwise consume part of
+                    # a genuine date (like "21.08.2026") on a bogus attempt.
+                    pos = m.start() + 1
                     continue
         return None
 
@@ -1349,162 +1096,6 @@ class ImageScanner:
         # Last resort: None (let the caller decide any final fallback)
         return None, False, ocr_date
 
-    def create_data_frame_old(self):
-        logger.info("++++++: inside create_df")
-        shop_name = self.get_shop_name()
-        address = self.get_Address()
-        invoice_number = self.get_invoice()
-        items = self.get_groceries_bill()
-        logger.info(f"++++++: inside create_df {items}")
-
-        # Normalize items
-        norm_items = []
-        for item in items or []:
-            logger.info(f"++++++: for {item} in {items}")
-            # Ensure keys exist
-            name = item.get("item")
-            qty = item.get("quantity", 1)
-            price = item.get("price")
-            ppk = item.pop("unit_price", item.get("pricePerKg", None))
-            # Cast/clean types (avoid NaN leaking into JSON)
-            try:
-                qty = float(qty) if qty is not None else None
-            except Exception:
-                qty = None
-            try:
-                price = float(price) if price is not None else None
-            except Exception:
-                price = None
-            try:
-                ppk = float(ppk) if ppk is not None else None
-            except Exception:
-                ppk = None
-
-            norm_items.append({
-                "item": name,
-                "quantity": qty,
-                "price": price,
-                "pricePerKg": ppk,
-            })
-
-        total_sum = self.get_Total_amount()
-        # date normalization + fallback
-        raw_date = self.get_date()
-        date_str = None
-        if isinstance(raw_date, str) and raw_date.strip():
-            date_str = raw_date.strip()
-        else:
-            date_str = self.infer_date_from_bill_id(self.bill_name) or datetime.now().strftime('%Y-%m-%d')
-
-        bill_id = self.bill_name
-        # Ensure month/year are strings for os.path.join and JSON
-        month = str(self.month).strip().lower() if self.month is not None else None
-        year = str(self.year).strip() if self.year is not None else (date_str[:4] if date_str else None)
-
-        result_dict = {
-            "shopName": shop_name,
-            "address": address,
-            "invoiceNumber": invoice_number,
-            "totalSum": total_sum,
-            "items": norm_items,
-            "date": date_str,
-            "billId": bill_id,
-            "month": month,
-            "year": year,
-        }
-
-        # Save JSON
-        base_directory = "static/json"
-        json_folder = os.path.join(base_directory, year or "unknown", month or "unknown")
-        os.makedirs(json_folder, exist_ok=True)
-        json_filename = f"{bill_id}.json" if bill_id else f"bill_{date_str}.json"
-        json_path = os.path.join(json_folder, json_filename)
-        with open(json_path, "w", encoding="utf-8") as f:
-            f.write(json.dumps(result_dict, indent=2, ensure_ascii=False))
-
-        # DataFrame (keep numerics numeric; strings everywhere else)
-        df = pd.DataFrame(norm_items, columns=['item', 'quantity', 'price', 'pricePerKg'])
-        df['shopName'] = shop_name
-        df['address'] = address
-        df['invoiceNumber'] = invoice_number
-        df['totalSum'] = pd.to_numeric(total_sum, errors='coerce')
-        df['date'] = date_str
-        df['month'] = month
-        df['year'] = year
-        df['billId'] = bill_id
-
-        # Clean numeric columns
-        for c in ['quantity', 'price', 'totalSum', 'pricePerKg']:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce')
-
-        logger.info("DataFrame created successfully for user ID %s", getattr(self, "user_id", "unknown"))
-        logger.debug("Extracted DataFrame:\n%s", df)
-        return df
-
-    def create_data_frame_old1(self):
-        # Extracting data
-        logger.info("++++++: inside create_df")
-        shop_name = self.get_shop_name()
-        address = self.get_Address()
-        invoice_number = self.get_invoice()
-        items = self.get_groceries_bill()
-        # Normalize pricePerKg key if present in items
-        logger.info(f"++++++: inside create_df {items}")
-        for item in items:
-            logger.info(f"++++++: for {item} in {items}")
-            if "unit_price" in item:
-                logger.info("++++++unit_price is present: inside create_df")
-                item["pricePerKg"] = item.pop("unit_price")
-            elif "pricePerKg" not in item:
-                item["pricePerKg"] = None
-
-        total_sum = self.get_Total_amount()
-        date = self.get_date()
-        bill_id = self.bill_name
-        month = self.month
-        year = self.year
-        # Construct JSON object
-        result_dict = {
-            "shopName": shop_name,
-            "address": address,
-            "invoiceNumber": invoice_number,
-            "totalSum": total_sum,
-            "items": items,
-            "date":date,
-            "billId":bill_id,
-            "month":month,
-            "year":year
-        }
-
-        result_json = json.dumps(result_dict, indent=2)
-        base_directory = "static/json/"
-        json_folder = os.path.join(base_directory, self.year,self.month)
-        if not os.path.exists(json_folder):
-            os.makedirs(json_folder)
-        # Save JSON to file
-        json_filename = f"{self.bill_name}.json"
-        json_path = os.path.join(json_folder, json_filename)  # Specify your folder path here
-        with open(json_path, "w") as json_file:
-            json_file.write(result_json)
-        # Construct DataFrame
-        df = pd.DataFrame(items, columns=['item', 'quantity', 'price', 'pricePerKg'])
-        df['shopName'] = shop_name
-        df['address'] = address
-        df['invoiceNumber'] = invoice_number
-        df['totalSum'] = total_sum
-        df['date'] = date
-        df['month'] = month
-        df['year'] = year
-        df['billId'] = bill_id
-        num_cols = ['quantity', 'price', 'totalSum', 'pricePerKg']
-        for c in num_cols:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce')  # '' → NaN
-        print('**** create_data_frame ****',df)
-        logger.info(df)
-        return df
-
     # put this method in the same class (e.g., ImageScanner/ReweParser)
     def _normalize_item_prices(self, items: list[dict]) -> list[dict]:
         """
@@ -1546,126 +1137,6 @@ class ImageScanner:
 
         return normalized
 
-    def create_data_frame__(self):
-        logger.info("++++++: inside create_df")
-        shop_name = self.get_shop_name()
-        address = self.get_Address()
-        invoice_number = self.get_invoice()
-        try:
-            items = self.get_groceries_bill() or []
-        except Exception as e:
-            logger.info("Error in calling get_groceries_bill()",e)
-        logger.info(f"++++++: inside create_df {items}")
-
-
-        # Normalize item dicts and pricePerKg
-        #for it in items:
-            #if "unit_price" in it:
-                #it["pricePerKg"] = it.pop("unit_price")
-            #elif "pricePerKg" not in it:
-                #it["pricePerKg"] = None
-
-        # 🔧 normalize once, no parser changes required
-        items = self._normalize_item_prices(items)
-        #items = [dict(x) for x in items if isinstance(x, dict)]
-        items = [row for row in items if isinstance(row, dict)]
-
-        def _f(x):
-            if x in (None, "", "None"):
-                return None
-            try:
-                return float(str(x).replace(",", "."))
-            except Exception:
-                return None
-        # --- Harmonize quantity vs weight_quantity, and ensure None instead of missing ---
-        for row in items:
-            # ensure keys exist
-            row.setdefault("quantity", None)
-            row.setdefault("weight_quantity", None)
-            row.setdefault("pricePerKg", None)
-
-            is_weight = row.get("pricePerKg") not in (None, "", 0) or row.get("weight_quantity") not in (None, "")
-
-            if is_weight:
-                # weight-based line: quantity should be NULL (not NaN), weight_quantity holds kg
-                row["quantity"] = None
-                # if we only had "quantity" (legacy weight in quantity), move it over
-                if row["weight_quantity"] in (None, "") and isinstance(row.get("quantity"), (int, float)):
-                    row["weight_quantity"] = row["quantity"]
-                    row["quantity"] = None
-            else:
-                # piece-based line: weight_quantity should be NULL
-                row["weight_quantity"] = None
-        total_sum = self.get_Total_amount()
-
-        # ---- robust date handling
-        raw_text = getattr(self, "formatted_text", None) or getattr(self, "ocr_text", None)
-        date_str = self.parse_date_from_text(raw_text) or self.parse_date_from_billname(self.bill_name) \
-                   or datetime.now().strftime("%Y-%m-%d")
-        # ----
-
-        bill_id = self.bill_name
-        month = str(self.month).strip().lower() if self.month is not None else ""
-        year = str(self.year).strip() if self.year is not None else date_str[:4]
-        chosen_date, mismatch, ocr_date = self.choose_bill_date(raw_text)
-
-        # Final fallback if both are missing (rare): use today, but you can also raise an error
-        if not chosen_date:
-            chosen_date = datetime.utcnow().date()
-            # Use ISO string for any JSON usage
-        chosen_date_iso = chosen_date.isoformat()  # 'YYYY-MM-DD'
-        result_dict = {
-            "shopName": shop_name,
-            "address": address,
-            "invoiceNumber": invoice_number,
-            "totalSum": total_sum,
-            "items": items,
-            "date": chosen_date_iso,  # <-- guaranteed string
-            "billId": bill_id,
-            "month": month,
-            "year": year,
-        }
-
-        base_directory = "static/json"
-        json_folder = os.path.join(base_directory, year or "unknown", month or "unknown")
-        os.makedirs(json_folder, exist_ok=True)
-        json_filename = f"{bill_id}.json" if bill_id else f"bill_{date_str}.json"
-        with open(os.path.join(json_folder, json_filename), "w", encoding="utf-8") as f:
-            json.dump(result_dict, f, indent=2, ensure_ascii=False)
-
-        # DataFrame
-        df = pd.DataFrame(items, columns=['item', 'quantity','weight_quantity', 'price', 'pricePerKg'])
-        df['shopName'] = shop_name
-        df['address'] = address
-        df['invoiceNumber'] = invoice_number
-        # total_sum might be "5,23" → make it dot-decimal before to_numeric
-        if isinstance(total_sum, str):
-            total_sum_clean = total_sum.replace(',', '.')
-        else:
-            total_sum_clean = total_sum
-        df['totalSum'] = pd.to_numeric(total_sum_clean, errors='coerce')
-        #df['totalSum'] = pd.to_numeric(total_sum, errors='coerce')
-        df['date'] = chosen_date  # <-- guaranteed string
-        df['month'] = month
-        df['year'] = year
-        df['billId'] = bill_id
-        for c in ['quantity', 'weight_quantity','price', 'totalSum', 'pricePerKg']:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce')
-        # 2) SPECIAL: if quantity is NaN but we have weight_quantity → use that
-        if 'quantity' in df.columns and 'weight_quantity' in df.columns:
-            df['quantity'] = df['quantity'].fillna(df['weight_quantity'])
-
-        # 3) finally, turn any remaining NaN into None so SQL gets NULL
-        # 3) NOW force numeric columns to object so None stays None
-        for c in ['quantity', 'weight_quantity', 'price', 'totalSum', 'pricePerKg']:
-            if c in df.columns:
-                df[c] = df[c].astype(object)
-                df[c] = df[c].where(pd.notnull(df[c]), None)
-
-        logger.info("DataFrame created successfully")
-        logger.debug("Extracted DataFrame:\n%s", df)
-        return df
 
     def create_data_frame(self):
         logger.info("++++++: inside create_df")
@@ -1749,7 +1220,7 @@ class ImageScanner:
         total_sum = self.get_Total_amount()
 
         # ---- robust date handling ----
-        raw_text = getattr(self, "formatted_text", None) or getattr(self, "ocr_text", None)
+        raw_text = getattr(self, "text", None)
         date_str = (
                 self.parse_date_from_text(raw_text)
                 or self.parse_date_from_billname(self.bill_name)

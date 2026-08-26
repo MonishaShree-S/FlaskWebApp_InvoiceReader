@@ -2,9 +2,10 @@
 
 import os
 import math
-import hashlib
+import uuid
 import logging
 from pathlib import Path
+from collections import defaultdict
 
 import pandas as pd
 from flask import current_app
@@ -15,9 +16,9 @@ from app.services.groceries import ImageScanner
 from app.utils.ReadPdf import pdf_to_jpg, extract_text_from_pdf
 from app.utils.dataHelpers import convert_date
 from app.utils.dataHelpers import next_available_bill_id
+from app.utils.dataHelpers import build_items_signature
 
-import re
-from datetime import datetime
+from datetime import datetime, date
 
 
 logger = logging.getLogger(__name__)
@@ -106,227 +107,212 @@ def process_one_pdf_upload(
     file_storage,
     userid,
     shopname,
-    month,
-    year,
-    bill_date_str,
     db_session,
+    bill_date_str=None,
     force_insert=False
 ):
+    """
+    Bill identity (date -> billId) is derived from the bill's own parsed
+    content, not from the uploaded filename -- filenames are only used for
+    basic type/size validation here. Duplicate detection compares parsed
+    item content (via build_items_signature), not raw file bytes, so a
+    re-upload is caught even if it was re-exported/re-scanned into a
+    byte-different PDF.
+    """
     safe_pdf_filename, _ = validate_pdf_file(file_storage)
 
     model_shop = models.get("groceries")
     if not model_shop:
         raise RuntimeError("groceries table is not available.")
 
-    # Extract date from filename
-    date_info = extract_date_from_bill_filename(file_storage.filename)
+    # Save to a staging path first -- the real bill_id depends on the date
+    # parsed from the bill's own content, which isn't known yet.
+    staging_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], "_staging")
+    os.makedirs(staging_dir, exist_ok=True)
+    staging_path = os.path.join(staging_dir, f"{uuid.uuid4().hex}.pdf")
+    file_storage.save(staging_path)
 
-    # Standard bill ID format: R_08_05_2026 / K_08_05_2026
-    shop_prefix = shopname[0].upper() if shopname else "R"
-    base_bill_id = (
-        f"{shop_prefix}_{date_info['day']:02d}_"
-        f"{date_info['month_num']:02d}_"
-        f"{date_info['year']}"
-    )
-
-    # Find existing bill IDs for the same day
-    existing_bill_ids = {
-        row.billId
-        for row in db_session.query(model_shop.billId)
-        .filter(
-            model_shop.userid == userid,
-            model_shop.billId.like(f"{base_bill_id}%")
+    try:
+        # Parse the bill content first. month/year passed here are just
+        # placeholders -- corrected below from the date actually found on
+        # the bill (ImageScanner.choose_bill_date already prioritizes the
+        # OCR/text date over anything else).
+        df = create_dataframe(
+            staging_path,
+            os.path.basename(staging_path),
+            "",
+            "",
+            shopname,
+            userid,
+            bill_date_str
         )
-        .all()
-    }
 
-    # File-hash duplicate check: catches re-uploads of the exact same file
-    uploaded_bytes = file_storage.stream.read()
-    file_storage.stream.seek(0)
-    upload_hash = hashlib.md5(uploaded_bytes).hexdigest()
+        if df.empty:
+            raise ValueError("Failed to extract valid data from the PDF.")
 
-    year_month_dir_check = os.path.join(
-        current_app.config["UPLOAD_FOLDER"],
-        str(year),
-        str(month).lower()
-    )
-    for existing_id in existing_bill_ids:
-        existing_path = os.path.join(year_month_dir_check, existing_id + ".pdf")
-        if os.path.exists(existing_path):
-            with open(existing_path, "rb") as f:
-                if hashlib.md5(f.read()).hexdigest() == upload_hash:
-                    return {"status": "skipped", "billId": existing_id, "filename": secure_filename(file_storage.filename), "reason": "duplicate content"}
+        parsed_date = df["date"].iloc[0]
+        if isinstance(parsed_date, datetime):
+            bill_date = parsed_date.date()
+        elif isinstance(parsed_date, date):
+            bill_date = parsed_date
+        else:
+            bill_date = datetime.strptime(str(parsed_date)[:10], "%Y-%m-%d").date()
 
-    # Generate next available bill ID
-    bill_id = next_available_bill_id(existing_bill_ids, base_bill_id)
+        month = bill_date.strftime("%B").lower()
+        year = bill_date.year
+        df["month"] = month
+        df["year"] = year
 
-    year_month_directory = os.path.join(
-        current_app.config["UPLOAD_FOLDER"],
-        str(year),
-        str(month).lower()
-    )
-    os.makedirs(year_month_directory, exist_ok=True)
+        # Standard bill ID format: R_08_05_2026 / K_08_05_2026 -- built from
+        # the content-derived date, not the filename.
+        shop_prefix = shopname[0].upper() if shopname else "R"
+        base_bill_id = (
+            f"{shop_prefix}_{bill_date.day:02d}_"
+            f"{bill_date.month:02d}_"
+            f"{year}"
+        )
 
-    # Save using bill_id as filename so the PDF URL always matches
-    stored_filename = bill_id + ".pdf"
-    pdf_path = os.path.join(year_month_directory, stored_filename)
-    file_storage.save(pdf_path)
+        # Find existing bills already stored for this same content-derived date
+        existing_bill_ids = {
+            row.billId
+            for row in db_session.query(model_shop.billId)
+            .filter(
+                model_shop.userid == userid,
+                model_shop.billId.like(f"{base_bill_id}%")
+            )
+            .all()
+        }
 
-    df = create_dataframe(
-        pdf_path,
-        stored_filename,
-        month,
-        year,
-        shopname,
-        userid,
-        bill_date_str
-    )
-
-    df["date"] = df["date"].apply(convert_date)
-
-    # totalSum duplicate check: if any existing bill for this date already has
-    # the same total, this is a re-upload — skip it even if the filename changed
-    if existing_bill_ids:
-        incoming_total = pd.to_numeric(df["totalSum"].iloc[0], errors="coerce") if not df.empty else None
-        if incoming_total is not None:
-            existing_totals = {
-                row.billId: row.totalSum
-                for row in db_session.query(model_shop.billId, model_shop.totalSum)
+        existing_signatures = {}
+        if existing_bill_ids:
+            existing_rows = (
+                db_session.query(model_shop)
                 .filter(
                     model_shop.userid == userid,
-                    model_shop.billId.like(f"{base_bill_id}%"),
-                    model_shop.totalSum != None
+                    model_shop.billId.in_(existing_bill_ids)
                 )
-                .distinct(model_shop.billId)
                 .all()
+            )
+            rows_by_bill_id = defaultdict(list)
+            for row in existing_rows:
+                rows_by_bill_id[row.billId].append({
+                    "item": row.item,
+                    "quantity": row.quantity,
+                    "price": row.price,
+                    "pricePerKg": getattr(row, "pricePerKg", None),
+                })
+            existing_signatures = {
+                bid: build_items_signature(rows)
+                for bid, rows in rows_by_bill_id.items()
             }
-            for eid, etotal in existing_totals.items():
-                if etotal is not None and abs(float(etotal) - float(incoming_total)) < 0.01:
-                    if not force_insert:
-                        os.remove(pdf_path)
-                        return {
-                            "status": "needs_confirmation",
-                            "conflicting_billId": eid,
-                            "filename": safe_pdf_filename,
-                            "total": float(incoming_total),
-                            "proposed_billId": bill_id,
-                            "reason": f"A bill with the same date and total €{incoming_total} already exists ({eid})"
-                        }
-                    # force_insert=True: user confirmed this is a different bill — proceed
 
-    def _clean_float(v):
-        if v is None:
-            return None
-        try:
-            if pd.isna(v):
-                return None
-        except Exception:
-            pass
-        try:
-            f = float(v)
-            if math.isnan(f) or math.isinf(f):
-                return None
-            return f
-        except Exception:
-            return None
-
-    def _clean_str(v):
-        return None if v in (None, "", "None") else str(v)
-
-    for _, row in df.iterrows():
-        address_val = _clean_str(row.get("address"))
-
-        if address_val:
-            address_val = address_val[:120]
-
-        new_entry = model_shop(
-            userid=int(userid),
-            billId=_clean_str(bill_id),
-            month=_clean_str(row["month"]),
-            year=int(row["year"]),
-            item=_clean_str(row["item"]),
-
-            quantity=_clean_float(row.get("quantity")),
-            weight_quantity=_clean_float(row.get("weight_quantity")),
-            price=_clean_float(row.get("price")),
-
-            unit_price=_clean_float(row.get("unit_price")),
-            unit_type=_clean_str(row.get("unit_type")),
-            total_price=_clean_float(row.get("total_price")),
-            unit_price_pricePerKg=_clean_float(row.get("unit_price_pricePerKg")),
-
-            shopName=_clean_str(shopname),
-            address=address_val,
-            invoiceNumber=_clean_str(row.get("invoiceNumber")),
-            totalSum=_clean_float(row.get("totalSum")),
-            date=row["date"]
+        incoming_signature = build_items_signature(
+            df[["item", "quantity", "price", "pricePerKg"]].to_dict("records")
         )
 
-        db_session.add(new_entry)
+        # Same date + identical contents -> true duplicate, always skip
+        # (not gated by force_insert -- an exact content match is never a
+        # "different bill the user confirmed").
+        if incoming_signature in existing_signatures.values():
+            duplicate_bill_id = next(
+                (bid for bid, sig in existing_signatures.items() if sig == incoming_signature),
+                None
+            )
+            return {
+                "status": "skipped",
+                "billId": duplicate_bill_id,
+                "filename": safe_pdf_filename,
+                "reason": "duplicate content"
+            }
 
-    return {
-        "status": "inserted",
-        "billId": bill_id,
-        "filename": safe_pdf_filename
-    }
+        # Same date, different contents -> genuinely a second bill that day;
+        # ask for confirmation unless the caller already forced it.
+        if existing_bill_ids and not force_insert:
+            incoming_total = pd.to_numeric(df["totalSum"].iloc[0], errors="coerce") if not df.empty else None
+            conflicting_id = sorted(existing_bill_ids)[0]
+            return {
+                "status": "needs_confirmation",
+                "conflicting_billId": conflicting_id,
+                "filename": safe_pdf_filename,
+                "total": float(incoming_total) if incoming_total is not None and not pd.isna(incoming_total) else None,
+                "proposed_billId": next_available_bill_id(existing_bill_ids, base_bill_id),
+                "reason": f"A bill already exists for {bill_date.isoformat()} ({conflicting_id}) with different contents; confirm this is a separate bill."
+            }
 
+        # Generate next available bill ID (base, or base_1/base_2/... if a
+        # confirmed different bill already exists for this same date)
+        bill_id = next_available_bill_id(existing_bill_ids, base_bill_id)
 
-def extract_date_from_bill_filename(filename):
-    """
-    Extract the bill date from supported filename formats.
+        # Now that the real bill_id is known, move the file out of staging
+        # and into its final home.
+        year_month_directory = os.path.join(
+            current_app.config["UPLOAD_FOLDER"],
+            str(year),
+            month
+        )
+        os.makedirs(year_month_directory, exist_ok=True)
+        pdf_path = os.path.join(year_month_directory, bill_id + ".pdf")
+        os.replace(staging_path, pdf_path)
+        staging_path = None  # moved -- nothing left to clean up in `finally`
 
-    Supported examples:
-        R_02_05_2026.pdf
-        K_05_03_2026.pdf
-        REWE 29.05.2026.pdf
-        Dein REWE eBon vom 15.05.2026.pdf
-        Dein REWE eBon vom 15.05.2026 (1).pdf
-        K_01.06.26.pdf  (DD.MM.YY with 2-digit year)
+        df["date"] = df["date"].apply(convert_date)
 
-    Returns:
-        {
-            "date": "2026-05-15",
-            "day": 15,
-            "month_num": 5,
-            "month": "may",
-            "year": 2026
+        def _clean_float(v):
+            if v is None:
+                return None
+            try:
+                if pd.isna(v):
+                    return None
+            except Exception:
+                pass
+            try:
+                f = float(v)
+                if math.isnan(f) or math.isinf(f):
+                    return None
+                return f
+            except Exception:
+                return None
+
+        def _clean_str(v):
+            return None if v in (None, "", "None") else str(v)
+
+        for _, row in df.iterrows():
+            address_val = _clean_str(row.get("address"))
+
+            if address_val:
+                address_val = address_val[:120]
+
+            new_entry = model_shop(
+                userid=int(userid),
+                billId=_clean_str(bill_id),
+                month=_clean_str(row["month"]),
+                year=int(row["year"]),
+                item=_clean_str(row["item"]),
+
+                quantity=_clean_float(row.get("quantity")),
+                weight_quantity=_clean_float(row.get("weight_quantity")),
+                price=_clean_float(row.get("price")),
+
+                unit_price=_clean_float(row.get("unit_price")),
+                unit_type=_clean_str(row.get("unit_type")),
+                total_price=_clean_float(row.get("total_price")),
+                unit_price_pricePerKg=_clean_float(row.get("unit_price_pricePerKg")),
+
+                shopName=_clean_str(shopname),
+                address=address_val,
+                invoiceNumber=_clean_str(row.get("invoiceNumber")),
+                totalSum=_clean_float(row.get("totalSum")),
+                date=row["date"]
+            )
+
+            db_session.add(new_entry)
+
+        return {
+            "status": "inserted",
+            "billId": bill_id,
+            "filename": safe_pdf_filename
         }
-    """
 
-    # -------- Pattern 1 --------
-    # R_02_05_2026.pdf
-    match = re.search(r'(\d{2})_(\d{2})_(\d{4})', filename)
-
-    # -------- Pattern 2 --------
-    # REWE 29.05.2026.pdf
-    # Dein REWE eBon vom 15.05.2026.pdf
-    # Dein REWE eBon vom 15.05.2026 (1).pdf
-    if not match:
-        match = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', filename)
-
-    # -------- Pattern 3 --------
-    # K_01.06.26.pdf  (DD.MM.YY with 2-digit year)
-    two_digit_year_match = None
-    if not match:
-        two_digit_year_match = re.search(r'(\d{2})\.(\d{2})\.(\d{2})', filename)
-
-    if not match and not two_digit_year_match:
-        raise ValueError(
-            f"Could not extract a valid date from filename: {filename}"
-        )
-
-    if two_digit_year_match:
-        day, month, yy = map(int, two_digit_year_match.groups())
-        year = 2000 + yy
-    else:
-        day, month, year = map(int, match.groups())
-
-    bill_date = datetime(year, month, day)
-
-    return {
-        "date": bill_date.strftime("%Y-%m-%d"),
-        "day": day,
-        "month_num": month,
-        "month": bill_date.strftime("%B").lower(),
-        "year": year,
-    }
+    finally:
+        if staging_path and os.path.exists(staging_path):
+            os.remove(staging_path)
