@@ -256,7 +256,7 @@ class ImageScanner:
         stop_words = (
             r"Tel\.?|Telefon|Fax|"
             r"UID|USt|MwSt|"
-            r"Steuer(?:-| )?Nr\.?|"
+            r"Steuer[-. ]?Nr\.?|"
             r"Steuernummer|"
             r"Filiale|Markt-Nr\.?|"
             r"Bon(?:-| )?Nr\.?|Beleg(?:-| )?Nr\.?|"
@@ -264,6 +264,7 @@ class ImageScanner:
             r"Öffnungszeiten|"
             r"Datum|"
             r"www\.|"
+            r"Haben\s+Sie|"
             r"EUR|Preis"
         )
 

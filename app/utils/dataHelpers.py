@@ -12,7 +12,7 @@ from app.services.rewe  import extract_text_from_pdf
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
-from datetime import date
+from datetime import date, time
 from sqlalchemy import and_, or_, func, cast, Integer, Date
 import calendar
 
@@ -335,6 +335,37 @@ def build_items_signature(rows_for_signature):
         normalized_rows.append(f"{item_name.lower()}|{quantity_val:g}|{price_val:.2f}|{price_per_kg_val:.3f}")
     normalized_rows.sort()
     return ";".join(normalized_rows)
+
+def parse_receipt_time(text):
+    """
+    Best-effort extraction of the time PRINTED on a receipt (not the upload
+    time), used to tell apart two bills from the same shop on the same
+    calendar date. Generic across shops -- tries the patterns seen on REWE
+    (TSE fiscal timestamp, or 'DD.MM.YYYY HH:MM Bon-Nr.') and Kaufland
+    ('Zeit: HH:MM:SS', 'Datum DD.MM.YY HH:MM Uhr') receipts, in order of
+    reliability. Returns None if nothing matches -- e.g. a scanned/
+    photographed bill with no extractable text -- so callers must treat a
+    None result as "unknown", not "no time on the bill".
+    """
+    if not text:
+        return None
+    normalized = str(text).replace('\xa0', ' ').replace(' ', ' ')
+
+    patterns = [
+        r'TSE-Start\s*:?\s*\d{4}-\d{2}-\d{2}T(\d{2}):(\d{2}):\d{2}',  # REWE TSE fiscal timestamp
+        r'Zeit\s*:?\s*(\d{2}):(\d{2}):\d{2}',                         # Kaufland "Zeit:  21:04:00"
+        r'\d{1,2}[.\s]\d{1,2}[.\s]\d{2,4}\s+(\d{2}):(\d{2})\s*Uhr',   # Kaufland "Datum 24.08.26  21:03 Uhr"
+        r'\d{2}\.\d{2}\.\d{4}\s+(\d{2}):(\d{2})\s+(?:Bon|Beleg)-Nr',  # REWE "03.08.2026  21:15  Bon-Nr.:7742"
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+        if match:
+            try:
+                return time(int(match.group(1)), int(match.group(2)))
+            except ValueError:
+                continue
+    return None
+
 
 def next_available_bill_id(existing_bill_ids_for_base, base_bill_id: str) -> str:
     """Return base bill id or suffixed version base_1, base_2, ... if conflicts exist."""
