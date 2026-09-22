@@ -17,6 +17,7 @@ from app.utils.ReadPdf import pdf_to_jpg, extract_text_from_pdf
 from app.utils.dataHelpers import convert_date
 from app.utils.dataHelpers import next_available_bill_id
 from app.utils.dataHelpers import build_items_signature
+from app.utils.dataHelpers import parse_receipt_time
 
 from datetime import datetime, date
 
@@ -225,19 +226,77 @@ def process_one_pdf_upload(
                 "reason": "duplicate content"
             }
 
-        # Same date, different contents -> genuinely a second bill that day;
-        # ask for confirmation unless the caller already forced it.
+        # Same date, different contents -> could be a genuine second bill
+        # that day, or the same bill re-scanned with slightly different OCR
+        # noise. Use the receipt's printed time and total amount (whenever
+        # they can be read) to tell the two cases apart automatically, and
+        # only fall back to asking a human when neither signal can rule out
+        # a match against something already on file for that date.
         if existing_bill_ids and not force_insert:
             incoming_total = pd.to_numeric(df["totalSum"].iloc[0], errors="coerce") if not df.empty else None
-            conflicting_id = sorted(existing_bill_ids)[0]
-            return {
-                "status": "needs_confirmation",
-                "conflicting_billId": conflicting_id,
-                "filename": safe_pdf_filename,
-                "total": float(incoming_total) if incoming_total is not None and not pd.isna(incoming_total) else None,
-                "proposed_billId": next_available_bill_id(existing_bill_ids, base_bill_id),
-                "reason": f"A bill already exists for {bill_date.isoformat()} ({conflicting_id}) with different contents; confirm this is a separate bill."
-            }
+            incoming_total = float(incoming_total) if incoming_total is not None and not pd.isna(incoming_total) else None
+
+            try:
+                incoming_raw_text = extract_text_from_pdf(staging_path, os.path.basename(staging_path))
+            except Exception:
+                incoming_raw_text = ""
+            incoming_time = parse_receipt_time(incoming_raw_text)
+
+            existing_totals = {}
+            for row in db_session.query(model_shop.billId, model_shop.totalSum).filter(
+                model_shop.userid == userid,
+                model_shop.billId.in_(existing_bill_ids)
+            ).all():
+                if row.billId not in existing_totals and row.totalSum is not None:
+                    existing_totals[row.billId] = float(row.totalSum)
+
+            existing_times = {}
+            for existing_id in existing_bill_ids:
+                existing_pdf_path = os.path.join(
+                    current_app.config["UPLOAD_FOLDER"], str(year), month, f"{existing_id}.pdf"
+                )
+                existing_time = None
+                if os.path.exists(existing_pdf_path):
+                    try:
+                        existing_time = parse_receipt_time(
+                            extract_text_from_pdf(existing_pdf_path, os.path.basename(existing_pdf_path))
+                        )
+                    except Exception:
+                        existing_time = None
+                existing_times[existing_id] = existing_time
+
+            def _cannot_rule_out(existing_id):
+                # True unless time or total clearly proves this is a
+                # different bill than existing_id -- unknown values (None)
+                # can never rule a match out, only a genuine mismatch can.
+                same_time_or_unknown = (
+                    incoming_time is None
+                    or existing_times.get(existing_id) is None
+                    or incoming_time == existing_times[existing_id]
+                )
+                same_total_or_unknown = (
+                    incoming_total is None
+                    or existing_totals.get(existing_id) is None
+                    or abs(incoming_total - existing_totals[existing_id]) < 0.01
+                )
+                return same_time_or_unknown and same_total_or_unknown
+
+            ambiguous_bill_ids = [bid for bid in existing_bill_ids if _cannot_rule_out(bid)]
+
+            if ambiguous_bill_ids:
+                conflicting_id = sorted(ambiguous_bill_ids)[0]
+                return {
+                    "status": "needs_confirmation",
+                    "conflicting_billId": conflicting_id,
+                    "filename": safe_pdf_filename,
+                    "total": incoming_total,
+                    "time": incoming_time.isoformat() if incoming_time else None,
+                    "proposed_billId": next_available_bill_id(existing_bill_ids, base_bill_id),
+                    "reason": f"A bill already exists for {bill_date.isoformat()} ({conflicting_id}) with different contents, and its time/total couldn't be told apart from this one; confirm this is a separate bill."
+                }
+            # Otherwise the receipt time and/or total clearly separates this
+            # from every bill already on file for the date -- fall through
+            # and insert it as a genuine second bill, no human needed.
 
         # Generate next available bill ID (base, or base_1/base_2/... if a
         # confirmed different bill already exists for this same date)

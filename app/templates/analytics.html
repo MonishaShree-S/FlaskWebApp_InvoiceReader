@@ -218,7 +218,29 @@
         </div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Top items by total spend</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+          <div class="chart-title" style="margin-bottom:0">Top items by total spend</div>
+          <div style="display:flex;gap:6px;">
+            <select id="top-items-year" onchange="loadTopItemsChart()" style="font-size:0.78rem;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--surface);color:var(--text);cursor:pointer;">
+              <option value="">All years</option>
+            </select>
+            <select id="top-items-month" onchange="loadTopItemsChart()" style="font-size:0.78rem;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:var(--surface);color:var(--text);cursor:pointer;">
+              <option value="">All months</option>
+              <option value="january">January</option>
+              <option value="february">February</option>
+              <option value="march">March</option>
+              <option value="april">April</option>
+              <option value="may">May</option>
+              <option value="june">June</option>
+              <option value="july">July</option>
+              <option value="august">August</option>
+              <option value="september">September</option>
+              <option value="october">October</option>
+              <option value="november">November</option>
+              <option value="december">December</option>
+            </select>
+          </div>
+        </div>
         <div class="chart-wrap" style="height:200px">
           <canvas id="kauflandChart" role="img" aria-label="Horizontal bar chart of top items and prices">Top spend items</canvas>
         </div>
@@ -442,6 +464,37 @@ const COLORS = {
   baking: '#7B3F9E',
   misc: '#888780'
 };
+
+const barValueLabelsPlugin = {
+  id: 'barValueLabels',
+  afterDatasetsDraw(chart) {
+    if (chart.options.plugins?.barValueLabels?.display === false) return;
+    const { ctx } = chart;
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.type !== 'bar' || !meta.visible) return;
+      ctx.save();
+      ctx.fillStyle = '#3A3830';
+      ctx.font = '600 11px Georgia, serif';
+      meta.data.forEach((bar, i) => {
+        const value = Number(dataset.data[i]);
+        if (!value) return;
+        const text = '€' + value.toFixed(2);
+        if (chart.options.indexAxis === 'y') {
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, bar.x + 6, bar.y);
+        } else {
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(text, bar.x, bar.y - 4);
+        }
+      });
+      ctx.restore();
+    });
+  }
+};
+Chart.register(barValueLabelsPlugin);
 
 function switchTab(name, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -863,12 +916,17 @@ function renderOverviewCharts() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false }, barValueLabels: { display: false } },
       scales: { y: { ticks: { callback: v => '€' + v } } }
     }
   });
 
-  const topSpendItems = [...allItems].sort((a, b) => Number(b.total || 0) - Number(a.total || 0)).slice(0, 6);
+  renderTopItemsChart(allItems);
+  populateTopItemsFilterYears();
+}
+
+function renderTopItemsChart(items) {
+  const topSpendItems = [...items].sort((a, b) => Number(b.total || 0) - Number(a.total || 0)).slice(0, 6);
   const overviewBarHeight = Math.max(200, topSpendItems.length * 40 + 60);
   document.querySelector('#kauflandChart').parentElement.style.height = overviewBarHeight + 'px';
 
@@ -892,6 +950,35 @@ function renderOverviewCharts() {
       scales: { x: { ticks: { callback: v => '€' + Number(v).toFixed(2) } } }
     }
   });
+}
+
+function populateTopItemsFilterYears() {
+  const yearSel = document.getElementById('top-items-year');
+  if (!yearSel) return;
+  const currentValue = yearSel.value;
+  const years = overallDataRaw?.available_years || [];
+  yearSel.innerHTML = '<option value="">All years</option>' +
+    years.map(y => `<option value="${y}"${String(y) === currentValue ? ' selected' : ''}>${y}</option>`).join('');
+}
+
+async function loadTopItemsChart() {
+  const year = document.getElementById('top-items-year')?.value || '';
+  const month = document.getElementById('top-items-month')?.value || '';
+  const params = new URLSearchParams();
+  if (year) params.set('year', year);
+  if (month) params.set('month', month);
+  const qs = params.toString() ? '?' + params.toString() : '';
+
+  try {
+    const data = await fetchJSON('/api/analytics/frequent_items' + qs);
+    const items = (Array.isArray(data) ? data : []).map(row => ({
+      name: row?.item || '',
+      total: Number(row?.total_cost || 0)
+    }));
+    renderTopItemsChart(items);
+  } catch (err) {
+    console.warn('Top items filter load skipped:', err);
+  }
 }
 
 function renderItemsCharts() {
