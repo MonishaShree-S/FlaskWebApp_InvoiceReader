@@ -8,6 +8,12 @@ identically to one uploaded through the web UI. The shop name is taken from
 the immediate parent folder (incoming/Rewe/, incoming/Kaufland/, ...), since
 there is no logged-in session to supply it.
 
+Credit card statements work the same way: a PDF dropped into
+incoming/Amazon_Visa/ (see CREDIT_CARD_FOLDERS) goes through
+process_credit_card_statement_upload() instead and ends up in
+CreditCardTransactions, filed under the same outcome folders below as
+amazon_visa/amazon_visa_<YYYY-MM>.pdf.
+
 Outcomes are filed under sibling folders of the same root:
   processed/<Shop>/     -- inserted successfully
   duplicates/<Shop>/    -- identical content already exists for that date
@@ -34,8 +40,10 @@ All functions here must run inside a Flask app context.
 """
 
 import os
+import re
 import shutil
 import logging
+import queue
 import threading
 import time
 
@@ -45,14 +53,37 @@ from watchdog.events import FileSystemEventHandler
 from werkzeug.utils import secure_filename
 
 from app.models.models import get_session
+from app.services.import_timing import BatchTracker
+from app.services.credit_cards import AMAZON_VISA_PROVIDER, process_credit_card_statement_upload
 from app.utils.pdf_upload_helpers import process_one_pdf_upload
 
 logger = logging.getLogger(__name__)
+
+# incoming/<folder>/ names (lowercased, spaces/dashes -> "_") that hold credit
+# card statements rather than shop bills, mapped to their provider.
+CREDIT_CARD_FOLDERS = {
+    "amazon_visa": AMAZON_VISA_PROVIDER,
+    "amazonvisa": AMAZON_VISA_PROVIDER,
+    "amazon": AMAZON_VISA_PROVIDER,
+}
 
 # A filesystem event only fires once, on drop -- this is what catches a file
 # that was left in place after a transient DB error (see process_incoming_file),
 # plus anything dropped while the watcher wasn't running at all.
 RESCAN_INTERVAL_SECONDS = 300
+
+_tracker = None
+_tracker_lock = threading.Lock()
+
+
+def _get_tracker(app):
+    """Timing tracker (see import_timing.py); CSVs go to <INCOMING_ROOT>/logs/."""
+    global _tracker
+    with _tracker_lock:
+        if _tracker is None:
+            root = os.path.dirname(os.path.normpath(app.config["INCOMING_FOLDER"]))
+            _tracker = BatchTracker(os.path.join(root, "logs"))
+        return _tracker
 
 
 class LocalFileAdapter:
@@ -123,10 +154,13 @@ def _move_to(app, config_key, shopname, src_path, dest_filename=None):
     return dest
 
 
-def process_incoming_file(app, file_path):
+def process_incoming_file(app, file_path, detected_at=None, source="sweep"):
     """Process a single PDF found under incoming/<Shop>/... Safe to call
     more than once for the same path (e.g. duplicate filesystem events) --
-    the second call is a no-op once the file has been moved out."""
+    the second call is a no-op once the file has been moved out.
+
+    detected_at is when the watcher first saw the file (epoch seconds); it's
+    the start point for the end-to-end timing recorded in import_timing.py."""
     if not os.path.isfile(file_path) or not file_path.lower().endswith(".pdf"):
         return
 
@@ -135,52 +169,86 @@ def process_incoming_file(app, file_path):
         logger.warning("Skipping %s: not inside a shop subfolder (incoming/<Shop>/...).", file_path)
         return
 
-    if not _wait_until_stable(file_path):
+    tracker = _get_tracker(app)
+    timer = tracker.start(file_path, detected_at=detected_at, source=source)
+
+    stable = _wait_until_stable(file_path)
+    timer.mark("stable_wait")
+    if not stable:
+        tracker.finish(timer, shopname, "skipped")
         return
 
     userid = app.config.get("AUTO_IMPORT_USERID")
     if not userid:
         logger.error("AUTO_IMPORT_USERID is not configured; cannot process %s", file_path)
+        tracker.finish(timer, shopname, "skipped")
         return
+
+    provider = CREDIT_CARD_FOLDERS.get(re.sub(r"[\s\-]+", "_", shopname))
+    if provider:
+        shopname = provider  # outcome folders are filed under the provider name
 
     adapter = LocalFileAdapter(file_path)
     try:
         with get_session() as db_session:
             try:
-                result = process_one_pdf_upload(
-                    file_storage=adapter,
-                    userid=int(userid),
-                    shopname=shopname,
-                    db_session=db_session,
-                    force_insert=False,
-                )
+                if provider:
+                    result = process_credit_card_statement_upload(
+                        file_storage=adapter,
+                        userid=int(userid),
+                        provider=provider,
+                        db_session=db_session,
+                    )
+                else:
+                    result = process_one_pdf_upload(
+                        file_storage=adapter,
+                        userid=int(userid),
+                        shopname=shopname,
+                        db_session=db_session,
+                        force_insert=False,
+                    )
                 status = result.get("status")
 
                 if status == "inserted":
                     db_session.commit()
                     adapter.close()
+                    timer.mark("process")
                     dest = _move_to(app, "PROCESSED_FOLDER", shopname, file_path, dest_filename=f"{result.get('billId')}.pdf")
+                    timer.mark("move")
                     logger.info("Inserted %s as billId=%s -> %s", file_path, result.get("billId"), dest)
+                    tracker.finish(timer, shopname, "processed", result.get("billId"))
 
                 elif status == "skipped":
                     db_session.rollback()
                     adapter.close()
+                    timer.mark("process")
                     duplicate_of = result.get("billId") or "duplicate"
+                    if duplicate_of.lower().endswith(".pdf"):
+                        # statement_ids from manual credit card uploads embed the uploaded filename
+                        duplicate_of = duplicate_of[:-4]
                     dest = _move_to(app, "DUPLICATES_FOLDER", shopname, file_path, dest_filename=f"{duplicate_of}.pdf")
+                    timer.mark("move")
                     logger.info("Duplicate content, matches billId=%s: %s -> %s", result.get("billId"), file_path, dest)
+                    tracker.finish(timer, shopname, "duplicate", result.get("billId"))
 
                 elif status == "needs_confirmation":
                     db_session.rollback()
                     adapter.close()
+                    timer.mark("process")
                     proposed = result.get("proposed_billId") or result.get("conflicting_billId") or "review"
                     dest = _move_to(app, "NEEDS_REVIEW_FOLDER", shopname, file_path, dest_filename=f"{proposed}.pdf")
+                    timer.mark("move")
                     logger.warning("%s needs manual confirmation (%s) -> %s", file_path, result.get("reason"), dest)
+                    tracker.finish(timer, shopname, "needs_review", proposed)
 
                 else:
                     db_session.rollback()
                     adapter.close()
+                    timer.mark("process")
                     dest = _move_to(app, "FAILED_FOLDER", shopname, file_path, dest_filename=secure_filename(os.path.basename(file_path)))
+                    timer.mark("move")
                     logger.error("Unexpected status %r for %s -> %s", status, file_path, dest)
+                    tracker.finish(timer, shopname, "failed")
 
             except (OperationalError, DBAPIError) as db_err:
                 # Database is unreachable right now (connection drop, DB not
@@ -190,6 +258,8 @@ def process_incoming_file(app, file_path):
                 db_session.rollback()
                 adapter.close()
                 logger.warning("DB unavailable while processing %s, will retry later: %s", file_path, db_err)
+                timer.mark("process")
+                tracker.finish(timer, shopname, "retry_later")
 
             except Exception:
                 # Genuine parsing/data problem -- retrying won't help, so
@@ -198,10 +268,13 @@ def process_incoming_file(app, file_path):
                 db_session.rollback()
                 adapter.close()
                 logger.exception("Failed to process %s", file_path)
+                timer.mark("process")
                 try:
                     _move_to(app, "FAILED_FOLDER", shopname, file_path, dest_filename=secure_filename(os.path.basename(file_path)))
                 except Exception:
                     logger.exception("Also failed to move %s into the failed/ folder", file_path)
+                timer.mark("move")
+                tracker.finish(timer, shopname, "failed")
     finally:
         adapter.close()
 
@@ -223,14 +296,19 @@ def scan_incoming_once(app):
 
 
 class _IncomingPdfHandler(FileSystemEventHandler):
-    def __init__(self, app):
+    """Only records when a PDF showed up and queues it; the worker thread
+    does the processing. watchdog dispatches events one at a time, so
+    processing inside the handler would delay noticing the next file and
+    make its measured time look shorter than it really was."""
+
+    def __init__(self, app, work_queue):
         self.app = app
+        self.work_queue = work_queue
 
     def _handle(self, path):
         if not path.lower().endswith(".pdf"):
             return
-        with self.app.app_context():
-            process_incoming_file(self.app, path)
+        self.work_queue.put((path, time.time()))
 
     def on_created(self, event):
         if not event.is_directory:
@@ -250,6 +328,7 @@ def start_incoming_watcher(app):
     """
     for key in ("INCOMING_FOLDER", "PROCESSED_FOLDER", "DUPLICATES_FOLDER", "NEEDS_REVIEW_FOLDER", "FAILED_FOLDER"):
         os.makedirs(app.config[key], exist_ok=True)
+    os.makedirs(os.path.join(app.config["INCOMING_FOLDER"], "Amazon_Visa"), exist_ok=True)
 
     if not app.config.get("AUTO_IMPORT_USERID"):
         logger.error("AUTO_IMPORT_USERID is not set (see .env) -- incoming/ watcher not started.")
@@ -259,8 +338,21 @@ def start_incoming_watcher(app):
         logger.info("Sweeping existing files in %s ...", app.config["INCOMING_FOLDER"])
         scan_incoming_once(app)
 
+    work_queue = queue.Queue()
+
+    def _worker_loop():
+        while True:
+            path, detected_at = work_queue.get()
+            try:
+                with app.app_context():
+                    process_incoming_file(app, path, detected_at=detected_at, source="event")
+            except Exception:
+                logger.exception("Unhandled error processing %s", path)
+
+    threading.Thread(target=_worker_loop, daemon=True, name="incoming-watcher-worker").start()
+
     observer = Observer()
-    observer.schedule(_IncomingPdfHandler(app), app.config["INCOMING_FOLDER"], recursive=True)
+    observer.schedule(_IncomingPdfHandler(app, work_queue), app.config["INCOMING_FOLDER"], recursive=True)
     observer.daemon = True
     observer.start()
 
