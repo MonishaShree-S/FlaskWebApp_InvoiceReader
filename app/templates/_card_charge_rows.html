@@ -1,0 +1,30 @@
+{# Unmatched card charges table. Expects `rows` (see card_reconciliation.build_report). #}
+<div class="table-wrapper">
+<table class="table table-striped mb-0">
+    <thead><tr><th>Date</th><th>Description</th><th class="text-right">Amount (€)</th><th>Statement</th><th>Link to bill</th><th></th></tr></thead>
+    <tbody>
+    {% for c in rows %}
+    <tr>
+        <td>{{ c.date.strftime("%d.%m.%Y") }}</td>
+        <td>{{ c.description }}{% if c.shop_guess %} <span class="text-muted small">({{ c.shop_guess }})</span>{% endif %}</td>
+        <td class="text-right amt">{{ "%.2f"|format(c.amount) }}</td>
+        <td class="small text-muted">{{ c.statement_id }}</td>
+        <td>
+            {% if c.suggestions %}
+            <select class="form-control form-control-sm link-select" data-tx="{{ c.id }}">
+                <option value="">Choose a bill…</option>
+                {% for b in c.suggestions %}
+                <option value="{{ b.billId }}">{{ b.date.strftime("%d.%m") }} · {{ b.shopName }} · €{{ "%.2f"|format(b.total) }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-sm btn-outline-primary" onclick="linkFromCharge(this)">Link</button>
+            {% else %}
+            <span class="text-muted small">No unmatched bills within 21 days</span>
+            {% endif %}
+        </td>
+        <td><button class="btn btn-sm btn-outline-secondary" onclick="act('ignore', {{ c.id }})">No receipt needed</button></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>

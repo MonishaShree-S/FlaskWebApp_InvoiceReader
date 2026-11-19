@@ -30,7 +30,10 @@
 <body class="view-page-background">
     {% include 'user_icon.html' %}
      <div class="container mt-5">
-    <h2 class="mb-4">Credit Card Statements</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Credit Card Statements</h2>
+        <a href="{{ url_for('main.card_reconciliation_page') }}" class="btn btn-primary">Check Bills vs Card</a>
+    </div>
 
     {% if statements %}
         <div class="row">

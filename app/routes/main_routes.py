@@ -24,6 +24,7 @@ from app.utils.route_helpers import sanitize_input, fetch_user_id_from_session,a
 import math
 from werkzeug.utils import secure_filename
 from app.services.credit_cards import parse_amazon_visa_statement
+from app.services import card_reconciliation
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -551,6 +552,8 @@ def upload_credit_card_bill():
 
             db_session.commit()
 
+        card_reconciliation.safe_auto_match(userid)
+
         return jsonify({
             "success": True,
             "provider": provider,
@@ -655,12 +658,68 @@ def credit_card_statement_detail(statement_id):
             for d in split_details
         ]
 
+    with get_session() as db_session:
+        card_reconciliation.auto_match(db_session, userid)
+        bill_links = card_reconciliation.statement_links(db_session, userid, statement_id)
+
     return render_template(
         "credit_card_statement_detail.html",
         statement_id=statement_id,
         transactions=transactions,
         split_details=split_details,
+        bill_links=bill_links,
     )
+
+
+@main_bp.route("/card_reconciliation", methods=["GET"])
+@login_required
+def card_reconciliation_page():
+    """Grocery bills checked against Amazon Visa transactions."""
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated or invalid session."}), 403
+
+    with get_session() as db_session:
+        card_reconciliation.auto_match(db_session, userid)
+        report = card_reconciliation.build_report(db_session, userid)
+
+    return render_template("card_reconciliation.html", report=report)
+
+
+@main_bp.route("/card_reconciliation/<action>", methods=["POST"])
+@login_required
+def card_reconciliation_action(action):
+    """
+    action: link (transaction_id + billId; adds a bill to the charge),
+    unlink (transaction_id, optional billId -- without it all links go),
+    ignore (transaction_id).
+    """
+    userid = fetch_user_id_from_session()
+    if not userid:
+        return jsonify({"error": "User not authenticated or invalid session."}), 403
+
+    data = request.get_json(silent=True) or {}
+    transaction_id = data.get("transaction_id")
+    if not transaction_id:
+        return jsonify({"error": "Missing transaction_id"}), 400
+
+    try:
+        with get_session() as db_session:
+            if action == "link":
+                bill_id = (data.get("billId") or "").strip()
+                if not bill_id:
+                    return jsonify({"error": "Missing billId"}), 400
+                card_reconciliation.link(db_session, userid, transaction_id, bill_id)
+            elif action == "unlink":
+                card_reconciliation.unlink(db_session, userid, transaction_id, (data.get("billId") or "").strip() or None)
+            elif action == "ignore":
+                card_reconciliation.ignore(db_session, userid, transaction_id)
+            else:
+                return jsonify({"error": f"Unknown action {action}"}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    return jsonify({"success": True})
 
 
 @main_bp.route("/split_credit_card_statement/<path:statement_id>", methods=["GET", "POST"])

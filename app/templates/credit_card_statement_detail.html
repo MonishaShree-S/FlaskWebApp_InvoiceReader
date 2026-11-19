@@ -78,16 +78,28 @@
                     <th>Description</th>
                     <th class="text-right">Amount (€)</th>
                     <th class="text-right">Points</th>
+                    <th>Receipt</th>
                 </tr>
             </thead>
             <tbody>
                 {% for tx in transactions %}
+                {% set link = bill_links.get(tx.id) %}
                 <tr>
                     <td>{{ tx.transaction_date.strftime("%d.%m.%Y") }}</td>
                     <td>{{ tx.card_number }}</td>
                     <td>{{ tx.description }}</td>
                     <td class="text-right">{{ "%.2f"|format(tx.amount) }}</td>
                     <td class="text-right">{{ tx.points }}</td>
+                    <td>
+                        {% if link and link.billIds %}
+                            {% for b in link.billIds %}<span class="badge badge-success">{{ b }}</span> {% endfor %}
+                            {% if link.remaining|abs > 0.01 %}<a href="{{ url_for('main.card_reconciliation_page') }}#partial" class="badge badge-warning">€{{ "%.2f"|format(link.remaining) }} unaccounted</a>{% endif %}
+                        {% elif link and link.ignored %}
+                            <span class="badge badge-secondary">No receipt needed</span>
+                        {% elif tx.amount > 0 %}
+                            <a href="{{ url_for('main.card_reconciliation_page') }}" class="badge badge-warning">Missing</a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
