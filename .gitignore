@@ -20,3 +20,6 @@ app/static/images/*.pdf_image.jpg
 .idea/
 .vscode/
 .claude/
+
+# Parsed receipt JSON written by groceries.py (data lives in the DB)
+static/json/
