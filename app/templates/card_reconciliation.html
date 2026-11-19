@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bills vs Card</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dustyRose.css') }}">
+    <style>
+        .detail-card {
+            background-color: rgba(215, 216, 197, 0.5);
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .stat { text-align: center; padding: 8px 4px; }
+        .stat .num { font-size: 1.8rem; font-weight: 700; line-height: 1.1; }
+        .stat .lbl { font-size: .85rem; color: #555; }
+        .stat a { color: inherit; text-decoration: none; }
+        .section { margin-bottom: 28px; }
+        .section h4 { margin-bottom: 4px; }
+        .section .hint { color: #666; font-size: .9rem; margin-bottom: 8px; }
+        .table td, .table th { vertical-align: middle; }
+        .link-select { max-width: 340px; display: inline-block; }
+        .exact { font-weight: 600; }
+        .amt { white-space: nowrap; }
+    </style>
+</head>
+<body class="view-page-background">
+    {% include 'user_icon.html' %}
+    <div class="container mt-5 mb-5">
+
+    <div class="detail-card">
+        <h2 class="mb-1">Bills vs Amazon Visa</h2>
+        <p class="text-muted mb-3">
+            Every grocery receipt should have a card charge, and every grocery card charge should have a receipt.
+            Matches need the same amount (or 2–3 receipts from one shop adding up to the charge) and a card date within 2 days before to 5 days after the receipt.
+            {% if report.coverage %}
+            Statements cover
+            {% for lo, hi in report.coverage %}{{ lo.strftime("%d.%m.%Y") }} – {{ hi.strftime("%d.%m.%Y") }}{% if not loop.last %}, {% endif %}{% endfor %}.
+            {% endif %}
+        </p>
+        <div class="row">
+            <div class="col-6 col-md-3 stat"><a href="#bills-no-charge">
+                <div class="num {% if report.bills_no_charge %}text-danger{% endif %}">{{ report.bills_no_charge|length }}</div>
+                <div class="lbl">Receipts with no card charge</div></a></div>
+            <div class="col-6 col-md-3 stat"><a href="#charges-missing">
+                <div class="num {% if report.charges_missing %}text-danger{% endif %}">{{ report.charges_missing|length }}</div>
+                <div class="lbl">Shop charges with no receipt</div></a></div>
+            <div class="col-6 col-md-3 stat"><a href="#charges-other">
+                <div class="num">{{ report.charges_other|length }}</div>
+                <div class="lbl">Other unmatched charges</div></a></div>
+            <div class="col-6 col-md-3 stat"><a href="#matched">
+                <div class="num text-success">{{ report.matched|length }}</div>
+                <div class="lbl">Matched</div></a></div>
+        </div>
+    </div>
+
+    <div id="alert-box"></div>
+
+    {# ---------------------------------------------------------------- #}
+    <div class="section" id="bills-no-charge">
+        <h4>Receipts with no card charge</h4>
+        <div class="hint">Bills dated inside a statement period with no matching Amazon Visa transaction. Paid another way, wrong total on the receipt, or a missing statement line.</div>
+        {% if report.bills_no_charge %}
+        <div class="table-wrapper">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>Date</th><th>Bill</th><th>Shop</th><th class="text-right">Total (€)</th><th>Link to card charge</th></tr></thead>
+            <tbody>
+            {% for b in report.bills_no_charge %}
+            <tr>
+                <td>{{ b.date.strftime("%d.%m.%Y") }}</td>
+                <td>{{ b.billId }}</td>
+                <td>{{ b.shopName }}</td>
+                <td class="text-right amt">{{ "%.2f"|format(b.total) }}</td>
+                <td>
+                    {% if b.suggestions %}
+                    <select class="form-control form-control-sm link-select" data-bill="{{ b.billId }}">
+                        <option value="">Choose a charge…</option>
+                        {% for c in b.suggestions %}
+                        <option value="{{ c.id }}">{{ c.date.strftime("%d.%m") }} · {{ c.description }} · €{{ "%.2f"|format(c.amount) }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary" onclick="linkFromBill(this)">Link</button>
+                    {% else %}
+                    <span class="text-muted small">No unmatched charges within 21 days</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="text-success">Every receipt in the statement periods has a card charge.</p>
+        {% endif %}
+    </div>
+
+    {# ---------------------------------------------------------------- #}
+    <div class="section" id="charges-missing">
+        <h4>Shop charges with no receipt</h4>
+        <div class="hint">Card charges at shops you upload receipts for, with no bill linked. Upload the receipt (it links automatically), link an existing bill, or mark it as needing no receipt.</div>
+        {% if report.charges_missing %}
+        {% with rows = report.charges_missing %}{% include '_card_charge_rows.html' %}{% endwith %}
+        {% else %}
+        <p class="text-success">No missing receipts.</p>
+        {% endif %}
+    </div>
+
+    {# ---------------------------------------------------------------- #}
+    <div class="section" id="charges-other">
+        <h4>Other unmatched charges</h4>
+        <div class="hint">Charges whose description doesn't name a shop you have receipts from. Link them if they are groceries, otherwise mark them as needing no receipt.</div>
+        {% if report.charges_other %}
+        {% with rows = report.charges_other %}{% include '_card_charge_rows.html' %}{% endwith %}
+        {% else %}
+        <p class="text-muted">None.</p>
+        {% endif %}
+    </div>
+
+    {# ---------------------------------------------------------------- #}
+    {% if report.bills_awaiting %}
+    <div class="section">
+        <h4>Waiting for the next statement</h4>
+        <div class="hint">Receipts newer than the latest imported statement. Not flagged yet.</div>
+        <div class="table-wrapper">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>Date</th><th>Bill</th><th>Shop</th><th class="text-right">Total (€)</th></tr></thead>
+            <tbody>
+            {% for b in report.bills_awaiting %}
+            <tr><td>{{ b.date.strftime("%d.%m.%Y") }}</td><td>{{ b.billId }}</td><td>{{ b.shopName }}</td><td class="text-right amt">{{ "%.2f"|format(b.total) }}</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ---------------------------------------------------------------- #}
+    {% macro matched_rows(rows, add_picker) %}
+        <div class="table-wrapper">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>Card date</th><th>Card description</th><th class="text-right">Charge (€)</th><th>Bills</th><th class="text-right">Left (€)</th><th></th></tr></thead>
+            <tbody>
+            {% for m in rows %}
+            <tr>
+                <td>{{ m.tx.date.strftime("%d.%m.%Y") }}</td>
+                <td>{{ m.tx.description }}</td>
+                <td class="text-right amt">{{ "%.2f"|format(m.tx.amount) }}</td>
+                <td>
+                    {% for b in m.bills %}
+                    <div class="bill-line">
+                        {{ b.billId }} <span class="text-muted small">{{ b.date.strftime("%d.%m") }}</span>
+                        · €{{ "%.2f"|format(b.total) }}
+                        {% if b.match_type == 'manual' %}<span class="badge badge-info">manual</span>
+                        {% elif not b.name_match %}<span class="badge badge-warning">amount + date only</span>
+                        {% elif m.bills|length > 1 %}<span class="badge badge-success">auto split</span>
+                        {% else %}<span class="badge badge-success">auto</span>{% endif %}
+                        {% if m.bills|length > 1 %}
+                        <button class="btn btn-sm btn-link text-danger p-0 ml-1" title="Remove this bill from the charge"
+                                onclick="act('unlink', {{ m.tx.id }}, {{ b.billId|tojson|forceescape }})">remove</button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% if add_picker and m.tx.suggestions %}
+                    <div class="mt-1">
+                        <select class="form-control form-control-sm link-select" data-tx="{{ m.tx.id }}">
+                            <option value="">Add another bill…</option>
+                            {% for b in m.tx.suggestions %}
+                            <option value="{{ b.billId }}">{{ b.date.strftime("%d.%m") }} · {{ b.shopName }} · €{{ "%.2f"|format(b.total) }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-sm btn-outline-primary" onclick="linkFromCharge(this)">Add</button>
+                    </div>
+                    {% endif %}
+                </td>
+                <td class="text-right amt {% if m.tx.remaining|abs > 0.01 %}text-danger{% endif %}">{{ "%.2f"|format(m.tx.remaining) }}</td>
+                <td><button class="btn btn-sm btn-outline-danger" onclick="act('unlink', {{ m.tx.id }})">Unlink{% if m.bills|length > 1 %} all{% endif %}</button></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    {% endmacro %}
+
+    {% if report.partial %}
+    <div class="section" id="partial">
+        <h4>Charges whose bills don't add up</h4>
+        <div class="hint">Linked bills total more or less than the card charge. Add the missing receipt, or remove the wrong one.</div>
+        {{ matched_rows(report.partial, true) }}
+    </div>
+    {% endif %}
+
+    <div class="section" id="matched">
+        <h4>Matched <button class="btn btn-sm btn-link" type="button" data-toggle="collapse" data-target="#matched-table">show / hide</button></h4>
+        <div class="hint">
+            One card payment can cover several receipts ("auto split": 2–3 receipts from the same shop that add up to the charge).
+            Auto matches without the shop name in the card description are marked "amount + date only". Check those.
+        </div>
+        <div class="collapse {% if report.matched|length <= 15 %}show{% endif %}" id="matched-table">
+        {% if report.matched %}
+        {{ matched_rows(report.matched, false) }}
+        {% else %}
+        <p class="text-muted">Nothing matched yet.</p>
+        {% endif %}
+        </div>
+    </div>
+
+    {% if report.ignored %}
+    <div class="section">
+        <h4>Marked as no receipt needed</h4>
+        <div class="table-wrapper">
+        <table class="table table-striped mb-0">
+            <thead><tr><th>Date</th><th>Description</th><th class="text-right">Amount (€)</th><th></th></tr></thead>
+            <tbody>
+            {% for t in report.ignored %}
+            <tr><td>{{ t.date.strftime("%d.%m.%Y") }}</td><td>{{ t.description }}</td><td class="text-right amt">{{ "%.2f"|format(t.amount) }}</td>
+                <td><button class="btn btn-sm btn-outline-secondary" onclick="act('unlink', {{ t.id }})">Undo</button></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <a href="{{ url_for('main.credit_card_statements') }}" class="btn btn-outline-dark mt-2">Back to Statements</a>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+    function showError(msg) {
+        const box = document.getElementById('alert-box');
+        box.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'alert alert-danger';
+        div.textContent = msg;
+        box.appendChild(div);
+        window.scrollTo(0, 0);
+    }
+    async function act(action, transactionId, billId) {
+        try {
+            const res = await fetch('/card_reconciliation/' + action, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({transaction_id: transactionId, billId: billId})
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { showError(data.error || 'Request failed'); return; }
+            location.reload();
+        } catch (e) {
+            showError('Request failed: ' + e);
+        }
+    }
+    function linkFromBill(btn) {
+        const sel = btn.parentElement.querySelector('select');
+        if (!sel.value) { showError('Choose a card charge first.'); return; }
+        act('link', parseInt(sel.value, 10), sel.dataset.bill);
+    }
+    function linkFromCharge(btn) {
+        const sel = btn.parentElement.querySelector('select');
+        if (!sel.value) { showError('Choose a bill first.'); return; }
+        act('link', parseInt(sel.dataset.tx, 10), sel.value);
+    }
+    </script>
+</body>
+</html>

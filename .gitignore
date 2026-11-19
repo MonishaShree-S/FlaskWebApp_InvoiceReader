@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Secrets / local config
+.env
+**/.env
+app/config/db.properties
+
+# Runtime data
+flask_session/
+**/flask_session/
+*.log
+
+# User-uploaded receipts and images generated from them
+app/static/uploads/
+app/static/images/*.pdf_image.jpg
+
+# IDE / tools
+.idea/
+.vscode/
+.claude/
+
+# Parsed receipt JSON written by groceries.py (data lives in the DB)
+static/json/

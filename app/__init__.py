@@ -47,6 +47,13 @@ def create_app(config_class=Config):
     except Exception as e:
         print(f"Database connection failed: {e}")
 
+    # Create the card <-> bill link table if it does not exist yet.
+    try:
+        from app.services.card_reconciliation import ensure_schema
+        ensure_schema(app.engine)
+    except Exception as e:
+        print(f"Could not create CardBillMatches table: {e}")
+
     # Initialize models within the app context
     try:
         with app.app_context():

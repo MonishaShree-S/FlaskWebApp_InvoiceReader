@@ -189,6 +189,31 @@ class CreditCardTransaction(db.Model):
         return f"<CreditCardTransaction({self.provider}, {self.transaction_date}, {self.amount})>"
 
 
+class CardBillMatch(db.Model):
+    """
+    Links one credit card transaction to the grocery bill (groceries.billId)
+    it paid for. match_type:
+      - "auto":    linked by app/services/card_reconciliation.py
+      - "manual":  linked by the user
+      - "ignored": user marked the charge as needing no receipt (billId is NULL)
+      - "rejected": user unlinked an auto match (never proposed again)
+    One row per (transaction, bill): a transaction can pay several bills; a
+    bill is linked to at most one transaction (enforced in
+    card_reconciliation.py).
+    """
+    __tablename__ = "CardBillMatches"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(Integer, ForeignKey("USERDATA.userid"), nullable=False)
+    transaction_id = Column(Integer, ForeignKey("CreditCardTransactions.id"), nullable=False, index=True)
+    billId = Column(String(100), nullable=True, index=True)
+    match_type = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<CardBillMatch(tx={self.transaction_id}, bill={self.billId}, {self.match_type})>"
+
+
 class CreditCardStatement(db.Model):
     __tablename__ = "CreditCardStatements"
 
