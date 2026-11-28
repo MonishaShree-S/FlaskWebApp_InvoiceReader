@@ -176,3 +176,67 @@
     padding: 0 !important;
     margin: 0 !important;
 }
+/* ------------------------------------------------------------------
+   Workspace (sidebar + panel) layout.
+   The landing page keeps the compact 720px card; once a panel is open
+   (index.html adds .workspace-open) the card grows so tables have room.
+   ------------------------------------------------------------------ */
+.dashboard-container.workspace-open {
+    max-width: min(1200px, 94vw) !important;
+}
+
+.workspace-content {
+    min-width: 0; /* lets wide tables shrink inside the flex row instead of overflowing */
+}
+
+/* Search Items results: only the item name wraps. */
+#search-items-table th,
+#search-items-table td {
+    white-space: nowrap;
+}
+
+#search-items-table th:first-child,
+#search-items-table td:first-child {
+    white-space: normal;
+    width: 100%;
+}
+
+/* Qty, Unit price, Total */
+#search-items-table td:nth-child(2),
+#search-items-table td:nth-child(3),
+#search-items-table td:nth-child(4) {
+    text-align: right;
+}
+
+/* styles.css makes every dashboard link a centered block with a 20px top
+   margin (meant for standalone links); inside table cells that pushes
+   "View Bill" below the row's text. */
+#search-items-table a {
+    display: inline;
+    margin: 0;
+}
+
+#search-items-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+/* Narrow screens: sidebar above the panel. */
+@media (max-width: 800px) {
+    .workspace-layout {
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .workspace-sidebar {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .workspace-content {
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: auto;
+    }
+}

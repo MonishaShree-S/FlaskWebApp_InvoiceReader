@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spending by Category</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dustyRose.css') }}">
+    <style>
+        .detail-card {
+            background-color: rgba(215, 216, 197, 0.5);
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .total { font-size: 1.6rem; font-weight: 700; }
+        .cat-row { margin-bottom: 12px; }
+        .cat-head { display: flex; justify-content: space-between; font-weight: 600; cursor: pointer; }
+        .bar { height: 8px; background: rgba(0,0,0,.08); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+        .bar > div { height: 100%; background: #8c5b67; }
+        .cat-children { font-size: .9rem; color: #555; padding-left: 14px; margin-top: 4px; }
+        .cat-children div { display: flex; justify-content: space-between; }
+        .muted-cat { opacity: .6; }
+        .table td, .table th { vertical-align: middle; }
+        .amt { white-space: nowrap; text-align: right; }
+        .cat-select { min-width: 210px; }
+        .merchant-opts { font-size: .85rem; margin-top: 4px; }
+        .merchant-opts input[type=text] { width: 140px; display: inline-block; }
+        .filter-chip { cursor: pointer; }
+    </style>
+</head>
+<body class="view-page-background">
+    {% include 'user_icon.html' %}
+    <div class="container mt-5 mb-5">
+
+    <div class="detail-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+            <h2 class="mb-2">Spending by Category</h2>
+            <form method="get" class="form-inline mb-2">
+                <label for="month" class="mr-2">Month</label>
+                <select id="month" name="month" class="form-control form-control-sm" onchange="this.form.submit()">
+                    {% for m in months %}
+                    <option value="{{ m }}" {% if m == report.month %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <p class="mb-1"><span class="total">€{{ "%.2f"|format(report.spending_total) }}</span> spent
+            <span class="text-muted">· {{ report.purchases|length }} purchases
+            {% if report.uncategorized_count %}· <a href="#" onclick="filterBy('uncategorized');return false;">{{ report.uncategorized_count }} uncategorized</a>{% endif %}</span></p>
+        <p class="text-muted small mb-3">Card charges plus receipts paid another way. A receipt linked to a card charge is counted once. Refunds reduce their category; transfers aren't counted as spending.</p>
+
+        {% for t in report.breakdown %}
+        <div class="cat-row {% if not t.counts_as_spending %}muted-cat{% endif %}">
+            <div class="cat-head" onclick="filterBy('{{ t.slug }}')" title="Show these purchases">
+                <span>{{ t.name }} <span class="text-muted small">({{ t.count }})</span></span>
+                <span>€{{ "%.2f"|format(t.total) }}{% if t.share is not none %} <span class="text-muted small">{{ t.share }}%</span>{% endif %}</span>
+            </div>
+            {% if t.share is not none %}<div class="bar"><div style="width: {{ [[t.share, 0]|max, 100]|min }}%"></div></div>{% endif %}
+            {% if t.children|length > 1 or (t.children and t.children[0].slug != t.slug) %}
+            <div class="cat-children">
+                {% for c in t.children %}<div><span>{{ c.name }}</span><span>€{{ "%.2f"|format(c.total) }}</span></div>{% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-muted">No purchases this month.</p>
+        {% endfor %}
+    </div>
+
+    <div id="alert-box"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h4 class="mb-0">Purchases <span id="filter-label" class="badge badge-secondary filter-chip d-none" onclick="filterBy(null)"></span></h4>
+    </div>
+    <div class="table-wrapper">
+    <table class="table table-striped mb-0" id="purchases">
+        <thead><tr><th>Date</th><th>Merchant</th><th class="amt">Amount (€)</th><th>Category</th></tr></thead>
+        <tbody>
+        {% for p in report.purchases %}
+        <tr data-top="{{ p.top_slug }}" data-cat="{{ p.category_slug }}">
+            <td>{{ p.date.strftime("%d.%m.%Y") }}</td>
+            <td>
+                {{ p.merchant }}
+                <div class="small text-muted">
+                    {% if p.type == 'bill' %}receipt {{ p.ref }} · not on card{% elif p.linked_to %}receipt {{ p.linked_to|join(', ') }}{% else %}card, no receipt{% endif %}
+                </div>
+            </td>
+            <td class="amt {% if p.amount < 0 %}text-success{% endif %}">{{ "%.2f"|format(p.amount) }}</td>
+            <td data-type="{{ p.type }}" data-ref="{{ p.ref }}" data-current="{{ p.category_slug }}" data-keyword="{{ p.suggested_keyword }}">
+                <a href="#" class="cat-label" onclick="openEditor(this);return false;" title="Change category">{{ p.category_name }}</a>
+                <div class="small text-muted source">
+                    {% if p.source == 'manual' %}set by you · <a href="#" onclick="resetCategory('{{ p.type }}', {{ p.ref|tojson|forceescape }});return false;">use rules</a>
+                    {% elif p.source == 'linked' %}from linked {% if p.type == 'bill' %}card charge{% else %}receipt{% endif %}
+                    {% elif p.source == 'default' %}no rule matched{% endif %}
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    {# One category editor, cloned into a row on demand (keeps the page small). #}
+    <template id="category-editor">
+        <div class="category-editor">
+            <select class="form-control form-control-sm cat-select">
+                {% for top in tree %}
+                <optgroup label="{{ top.name }}">
+                    <option value="{{ top.slug }}">{{ top.name }}</option>
+                    {% for c in top.children %}<option value="{{ c.slug }}">&nbsp;&nbsp;{{ c.name }}</option>{% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+            <div class="merchant-opts">
+                <label class="mb-0"><input type="checkbox" class="apply-merchant" checked> all purchases matching</label>
+                <input type="text" class="form-control form-control-sm keyword" maxlength="100">
+                <button class="btn btn-sm btn-primary" onclick="saveCategory(this)">Save</button>
+                <button class="btn btn-sm btn-link" onclick="closeEditor(this)">Cancel</button>
+            </div>
+        </div>
+    </template>
+
+    <div class="detail-card mt-4">
+        <h5>Your merchant rules</h5>
+        <p class="text-muted small mb-2">A rule applies a category to every purchase whose merchant contains the keyword (from the start of a word). Your rules override the built-in ones; the longest matching keyword wins.</p>
+        {% if rules %}
+        <table class="table table-sm mb-3">
+            <thead><tr><th>Keyword</th><th>Category</th><th></th></tr></thead>
+            <tbody>
+            {% for r in rules %}
+            <tr><td><code>{{ r.keyword }}</code></td><td>{{ r.category_name }}</td>
+                <td class="text-right"><button class="btn btn-sm btn-outline-danger" onclick="deleteRule({{ r.id }})">Delete</button></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        <form class="form-inline" onsubmit="addRule(event)">
+            <input id="rule-keyword" class="form-control form-control-sm mr-2 mb-2" placeholder="keyword, e.g. nepal momo" maxlength="100" required>
+            <select id="rule-category" class="form-control form-control-sm mr-2 mb-2">
+                {% for top in tree %}
+                <optgroup label="{{ top.name }}">
+                    <option value="{{ top.slug }}">{{ top.name }}</option>
+                    {% for c in top.children %}<option value="{{ c.slug }}">&nbsp;&nbsp;{{ c.name }}</option>{% endfor %}
+                </optgroup>
+                {% endfor %}
+            </select>
+            <button class="btn btn-sm btn-primary mb-2">Add rule</button>
+        </form>
+    </div>
+
+    <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark mt-2">Back</a>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+    function showError(msg) {
+        const box = document.getElementById('alert-box');
+        box.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'alert alert-danger';
+        div.textContent = msg;
+        box.appendChild(div);
+        box.scrollIntoView();
+    }
+    async function api(method, url, body) {
+        try {
+            const res = await fetch(url, {
+                method,
+                headers: {'Content-Type': 'application/json'},
+                body: body === undefined ? undefined : JSON.stringify(body)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) { showError(data.error || 'Request failed'); return false; }
+            return true;
+        } catch (e) {
+            showError('Request failed: ' + e);
+            return false;
+        }
+    }
+    function purchaseUrl(type, ref) {
+        return '/api/purchases/' + encodeURIComponent(type) + '/' + encodeURIComponent(ref) + '/category';
+    }
+    function openEditor(link) {
+        const cell = link.closest('td');
+        if (cell.querySelector('.category-editor')) return;
+        const editor = document.getElementById('category-editor').content.firstElementChild.cloneNode(true);
+        editor.querySelector('select').value = cell.dataset.current;
+        editor.querySelector('.keyword').value = cell.dataset.keyword;
+        link.classList.add('d-none');
+        cell.insertBefore(editor, link.nextSibling);
+        editor.querySelector('select').focus();
+    }
+    function closeEditor(btn) {
+        const cell = btn.closest('td');
+        cell.querySelector('.category-editor').remove();
+        cell.querySelector('.cat-label').classList.remove('d-none');
+    }
+    async function saveCategory(btn) {
+        const cell = btn.closest('td');
+        const body = {category: cell.querySelector('select').value};
+        if (cell.querySelector('.apply-merchant').checked) {
+            body.apply_to_merchant = true;
+            body.keyword = cell.querySelector('.keyword').value.trim();
+        }
+        if (await api('PUT', purchaseUrl(cell.dataset.type, cell.dataset.ref), body)) location.reload();
+    }
+    async function resetCategory(type, ref) {
+        if (await api('DELETE', purchaseUrl(type, ref))) location.reload();
+    }
+    async function addRule(ev) {
+        ev.preventDefault();
+        const body = {keyword: document.getElementById('rule-keyword').value.trim(),
+                      category: document.getElementById('rule-category').value};
+        if (await api('POST', '/api/category_rules', body)) location.reload();
+    }
+    async function deleteRule(id) {
+        if (await api('DELETE', '/api/category_rules/' + id)) location.reload();
+    }
+    function filterBy(slug) {
+        const label = document.getElementById('filter-label');
+        document.querySelectorAll('#purchases tbody tr').forEach(tr => {
+            const show = !slug || tr.dataset.top === slug || tr.dataset.cat === slug;
+            tr.style.display = show ? '' : 'none';
+        });
+        if (slug) {
+            label.textContent = slug + '  ✕';
+            label.classList.remove('d-none');
+            document.getElementById('purchases').scrollIntoView();
+        } else {
+            label.classList.add('d-none');
+        }
+    }
+    </script>
+</body>
+</html>

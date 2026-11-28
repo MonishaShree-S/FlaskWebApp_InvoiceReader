@@ -54,7 +54,7 @@ from werkzeug.utils import secure_filename
 
 from app.models.models import get_session
 from app.services.import_timing import BatchTracker
-from app.services.card_reconciliation import safe_auto_match
+from app.services.post_import import run_post_import
 from app.services.credit_cards import AMAZON_VISA_PROVIDER, process_credit_card_statement_upload
 from app.utils.pdf_upload_helpers import process_one_pdf_upload
 
@@ -218,8 +218,8 @@ def process_incoming_file(app, file_path, detected_at=None, source="sweep"):
                     timer.mark("move")
                     logger.info("Inserted %s as billId=%s -> %s", file_path, result.get("billId"), dest)
                     tracker.finish(timer, shopname, "processed", result.get("billId"))
-                    # Link the new bill / statement to its card charges / receipts.
-                    safe_auto_match(int(userid))
+                    # Link to card charges / receipts and categorize the new purchases.
+                    run_post_import(int(userid))
 
                 elif status == "skipped":
                     db_session.rollback()

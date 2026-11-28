@@ -1,6 +1,6 @@
 from flask_login import UserMixin
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy import Column, Integer, String,ForeignKey ,Float, Boolean, Date
+from sqlalchemy import Column, Integer, String,ForeignKey ,Float, Boolean, Date, UniqueConstraint, Index
 from app.services.DatabaseConnection import db, Base
 from flask import current_app
 from sqlalchemy.orm import Session, relationship
@@ -241,6 +241,72 @@ class CreditCardStatement(db.Model):
     points_redeemed_eur = Column(Float, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class SpendCategory(db.Model):
+    """
+    Purchase-level category taxonomy (Groceries, Dining Out, Travel ...), two
+    levels via parent_id. Not the item-level groceries.category used by
+    budgeting. Seeded from app/services/spend_category_seed.py.
+    """
+    __tablename__ = "SpendCategories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    slug = Column(String(64), nullable=False, unique=True)
+    name = Column(String(100), nullable=False)
+    parent_id = Column(Integer, ForeignKey("SpendCategories.id"), nullable=True)
+    counts_as_spending = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+
+    def __repr__(self):
+        return f"<SpendCategory({self.slug})>"
+
+
+class CategoryRule(db.Model):
+    """
+    Merchant keyword -> category. userid NULL = global rule (seeded); a
+    user's own rules take precedence over global ones.
+    """
+    __tablename__ = "CategoryRules"
+    __table_args__ = (UniqueConstraint("userid", "keyword", name="uq_CategoryRules_user_keyword"),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(Integer, ForeignKey("USERDATA.userid"), nullable=True, index=True)
+    keyword = Column(String(100), nullable=False)
+    category_id = Column(Integer, ForeignKey("SpendCategories.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<CategoryRule(user={self.userid}, {self.keyword!r} -> {self.category_id})>"
+
+
+class PurchaseCategory(db.Model):
+    """
+    The category assigned to one purchase. A purchase is either a card
+    transaction (purchase_type "card_transaction", purchase_ref = its id) or
+    a grocery bill (purchase_type "bill", purchase_ref = billId).
+
+    source: "rule" (keyword rule, rule_id set), "linked" (copied from the
+    linked bill / card charge), "manual" (set by the user; never overwritten
+    by re-categorization).
+    """
+    __tablename__ = "PurchaseCategories"
+    __table_args__ = (
+        UniqueConstraint("userid", "purchase_type", "purchase_ref", name="uq_PurchaseCategories_purchase"),
+        Index("ix_PurchaseCategories_user_category", "userid", "category_id"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    userid = Column(Integer, ForeignKey("USERDATA.userid"), nullable=False)
+    purchase_type = Column(String(20), nullable=False)
+    purchase_ref = Column(String(100), nullable=False)
+    category_id = Column(Integer, ForeignKey("SpendCategories.id"), nullable=False)
+    source = Column(String(10), nullable=False)
+    rule_id = Column(Integer, ForeignKey("CategoryRules.id", ondelete="SET NULL"), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<PurchaseCategory({self.purchase_type}:{self.purchase_ref} -> {self.category_id}, {self.source})>"
+
 
 class Budgets(db.Model):
     __tablename__ = 'Budgets'

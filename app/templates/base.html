@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Invoice Reader{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="app-shell">
+
+<aside class="app-sidebar" id="app-sidebar" aria-label="Main navigation">
+  <a class="app-brand" href="{{ url_for('main.index') }}">
+    <span class="app-brand-mark"><i class="bi bi-receipt"></i></span>
+    Invoice Reader
+  </a>
+  {% for section in navigation %}
+  <nav class="nav-section">
+    <div class="nav-section-title"><i class="bi bi-{{ section.icon }}"></i>{{ section.title }}</div>
+    {% for item in section.items %}
+      {% if item.soon %}
+        <span class="nav-item-link disabled" aria-disabled="true">
+          <i class="bi bi-{{ item.icon }}"></i>{{ item.label }}<span class="badge-soon">soon</span>
+        </span>
+      {% else %}
+        <a class="nav-item-link{% if item.endpoint == active_endpoint %} active{% endif %}"
+           href="{{ url_for(item.endpoint) }}"
+           {% if item.endpoint == active_endpoint %}aria-current="page"{% endif %}>
+          <i class="bi bi-{{ item.icon }}"></i>{{ item.label }}
+        </a>
+      {% endif %}
+    {% endfor %}
+  </nav>
+  {% endfor %}
+  <div class="app-sidebar-footer">
+    <a class="nav-item-link" href="{{ url_for('user.settings') }}"><i class="bi bi-gear"></i>Settings</a>
+    <a class="nav-item-link" href="{{ url_for('user.logout') }}"><i class="bi bi-box-arrow-right"></i>Log out</a>
+  </div>
+</aside>
+<div class="app-backdrop" onclick="document.body.classList.remove('sidebar-open')"></div>
+
+<main class="app-main">
+  <header class="app-header">
+    <div class="d-flex align-items-start" style="gap: 12px;">
+      <button class="app-menu-toggle" type="button" aria-label="Open menu" aria-controls="app-sidebar"
+              onclick="document.body.classList.toggle('sidebar-open')"><i class="bi bi-list"></i></button>
+      <div>
+        <h1>{% block page_title %}{% endblock %}</h1>
+        <div class="app-subtitle">{% block page_subtitle %}{% endblock %}</div>
+      </div>
+    </div>
+    <div class="app-header-actions">{% block header_actions %}{% endblock %}</div>
+  </header>
+
+  {% block content %}{% endblock %}
+</main>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -11,6 +11,9 @@ from app.services.DatabaseConnection import db,Base
 from sqlalchemy.ext.declarative import declarative_base
 from app.routes.admin_routes import admin_bp
 from app.routes.budgeting_routes import budgeting_bp
+from app.routes.spending_routes import spending_bp
+from app.routes.credit_card_routes import credit_card_bp
+from app.navigation import inject_navigation
 
 # Initialize Flask extensions
 login_manager = LoginManager()
@@ -25,6 +28,9 @@ def create_app(config_class=Config):
     app.register_blueprint(user_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(budgeting_bp)
+    app.register_blueprint(spending_bp)
+    app.register_blueprint(credit_card_bp)
+    app.context_processor(inject_navigation)
 
     # Ensure necessary directories exist
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -47,12 +53,14 @@ def create_app(config_class=Config):
     except Exception as e:
         print(f"Database connection failed: {e}")
 
-    # Create the card <-> bill link table if it does not exist yet.
-    try:
-        from app.services.card_reconciliation import ensure_schema
-        ensure_schema(app.engine)
-    except Exception as e:
-        print(f"Could not create CardBillMatches table: {e}")
+    # Idempotent schema setup + seed data for card reconciliation and purchase categories.
+    from app.services import card_reconciliation, spend_categories
+    for name, ensure in (("card reconciliation", card_reconciliation.ensure_schema),
+                         ("spend categories", spend_categories.ensure_schema)):
+        try:
+            ensure(app.engine)
+        except Exception as e:
+            print(f"Schema setup for {name} failed: {e}")
 
     # Initialize models within the app context
     try:

@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% macro eur(value) -%}
+  {%- if value is none -%}–{%- else -%}{{ "{:,.2f}".format(value) }} €{%- endif -%}
+{%- endmacro %}
+
+{# change: % vs last month. higher_is_bad: spending going up shows in rose. #}
+{% macro delta(change, higher_is_bad=True) -%}
+  {%- if change is none -%}
+    <span class="kpi-delta text-muted-theme">no previous month</span>
+  {%- else -%}
+    {%- set up = change > 0 -%}
+    <span class="kpi-delta {{ ('delta-up' if higher_is_bad else 'delta-up-good') if up else ('delta-down' if higher_is_bad else 'delta-up') }}">
+      <i class="bi bi-arrow-{{ 'up' if up else 'down' }}"></i>{{ "%.1f"|format(change|abs) }}%
+      <span class="text-muted-theme">vs last month</span>
+    </span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% block title %}Credit card · Analysis{% endblock %}
+{% block page_title %}Credit card analysis{% endblock %}
+{% block page_subtitle %}Spending · Categories · Rewards{% if d.month %} — billing month {{ d.month_label }}{% endif %}{% endblock %}
+
+{% block head %}
+<style>
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .kpi-label { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12.5px; }
+  .kpi-icon { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+              background: var(--rose-100); color: var(--navy-700); font-size: 14px; }
+  .kpi-value { font-size: 24px; font-weight: 600; margin: 8px 0 2px; color: var(--navy-900); white-space: nowrap;
+               overflow: hidden; text-overflow: ellipsis; }
+  .kpi-sub { font-size: 12px; color: var(--text-muted); }
+  .kpi-delta { font-size: 12px; }
+
+  .dash-row { display: grid; gap: 14px; margin-bottom: 14px; }
+  .row-charts { grid-template-columns: 1.15fr 1.25fr 1fr; }
+  .row-details { grid-template-columns: 2.2fr 1fr; }
+  .row-extras { grid-template-columns: 1.3fr 1fr 1fr; }
+
+  .chart-box { position: relative; height: 220px; }
+  .donut-wrap { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; }
+  .donut-wrap .chart-box { height: 150px; }
+  .legend { list-style: none; padding: 0; margin: 0; }
+  .legend li { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12.5px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .legend .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend .pct { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .bar-list { list-style: none; padding: 0; margin: 0; }
+  .bar-list li { padding: 6px 0; }
+  .bar-list .row-top { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+  .bar-list .row-top .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-list .row-top .amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bar-track { height: 6px; border-radius: 4px; background: var(--rose-100); margin-top: 5px; }
+  .bar-fill { height: 6px; border-radius: 4px; background: var(--navy-700); }
+
+  .theme-table { width: 100%; font-size: 12.5px; }
+  .theme-table th { color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border);
+                    padding: 6px 8px; white-space: nowrap; }
+  .theme-table td { padding: 7px 8px; border-bottom: 1px solid #F3E7EB; font-variant-numeric: tabular-nums; }
+  .theme-table tr:last-child td { border-bottom: none; }
+  .theme-table .num { text-align: right; }
+
+  .ring-wrap { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+  .ring-center-value { font-size: 22px; font-weight: 600; fill: var(--navy-900); }
+  .ring-center-label { font-size: 11px; fill: var(--text-muted); }
+  .ring-stats { display: flex; gap: 18px; font-size: 12px; color: var(--text-muted); }
+  .ring-stats strong { display: block; color: var(--navy-900); font-size: 14px; }
+
+  .uncat-number { font-size: 34px; font-weight: 600; color: var(--navy-900); line-height: 1.1; }
+
+  @media (max-width: 1199.98px) {
+    .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .row-charts, .row-extras { grid-template-columns: 1fr 1fr; }
+    .row-details { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 767.98px) {
+    .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .row-charts, .row-extras { grid-template-columns: 1fr; }
+    .donut-wrap { grid-template-columns: 120px 1fr; }
+    .donut-wrap .chart-box { height: 120px; }
+    .table-scroll { overflow-x: auto; }
+  }
+</style>
+{% endblock %}
+
+{% block header_actions %}
+  {% if d.months %}
+  <form method="get" class="m-0">
+    <label for="month" class="sr-only">Billing month</label>
+    <select id="month" name="month" class="form-control form-control-sm theme-select" onchange="this.form.submit()">
+      {% for m in d.months %}
+        <option value="{{ m }}" {% if m == d.month %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if d.empty %}
+  <div class="panel empty-state">
+    <i class="bi bi-credit-card" style="font-size: 28px;"></i>
+    <p class="mt-2 mb-3">No credit card statements imported yet.</p>
+    <a class="btn btn-rose btn-sm" href="{{ url_for('main.credit_card_statements') }}">Go to statements</a>
+  </div>
+{% else %}
+{% set k = d.kpis %}
+
+<!-- Row 1: KPIs -->
+<section class="kpi-grid" aria-label="Key figures">
+  <div class="panel">
+    <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-wallet2"></i></span>Total spend</div>
+    <div class="kpi-value">{{ eur(k.spend.value) }}</div>
+    {{ delta(k.spend.change) }}
+  </div>
+  <div class="panel">
+    <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-receipt"></i></span>Transactions</div>
+    <div class="kpi-value">{{ k.transactions.value }}</div>
+    <div class="kpi-sub">avg {{ eur(k.transactions.average) }} per charge</div>
+  </div>
+  <div class="panel">
+    <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-tags"></i></span>Top category</div>
+    {% if k.top_category %}
+      <div class="kpi-value" title="{{ k.top_category.name }}">{{ k.top_category.name }}</div>
+      <div class="kpi-sub">{{ k.top_category.share }}% of spend · {{ eur(k.top_category.total) }}</div>
+    {% else %}
+      <div class="kpi-value">–</div>
+    {% endif %}
+  </div>
+  <div class="panel">
+    <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-stars"></i></span>Points earned</div>
+    <div class="kpi-value">{{ "{:,}".format(k.points.value) }}</div>
+    {% if k.points.eur is not none %}<div class="kpi-sub">worth {{ eur(k.points.eur) }}</div>
+    {% else %}{{ delta(k.points.change, higher_is_bad=False) }}{% endif %}
+  </div>
+  <div class="panel">
+    <div class="kpi-label"><span class="kpi-icon"><i class="bi bi-check2-square"></i></span>Receipts matched</div>
+    <div class="kpi-value">{% if k.receipts.pct is not none %}{{ k.receipts.pct }}%{% else %}–{% endif %}</div>
+    <div class="kpi-sub">
+      {% if k.receipts.expected %}{{ k.receipts.matched }} of {{ k.receipts.expected }} shop charges
+      · <a href="{{ url_for('main.card_reconciliation_page') }}">reconcile</a>
+      {% else %}no shop charges this month{% endif %}
+    </div>
+  </div>
+</section>
+
+<!-- Row 2: charts -->
+<section class="dash-row row-charts">
+  <div class="panel">
+    <div class="panel-title">Spend by category</div>
+    {% if d.by_category %}
+    <div class="donut-wrap">
+      <div class="chart-box"><canvas id="chart-categories" aria-label="Spend by category" role="img"></canvas></div>
+      <ul class="legend" id="legend-categories"></ul>
+    </div>
+    {% else %}<div class="empty-state">No spending this month.</div>{% endif %}
+  </div>
+  <div class="panel">
+    <div class="panel-title">Monthly trend <small>last {{ d.trend|length }} billing months</small></div>
+    <div class="chart-box"><canvas id="chart-trend" aria-label="Monthly spending trend" role="img"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Top merchants</div>
+    {% if d.top_merchants %}
+    {% set top_total = d.top_merchants[0].total %}
+    <ul class="bar-list">
+      {% for m in d.top_merchants %}
+      <li>
+        <div class="row-top"><span class="name" title="{{ m.name }}">{{ m.name }}</span><span class="amt">{{ eur(m.total) }}</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width: {{ (100 * m.total / top_total)|round(1) }}%"></div></div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<div class="empty-state">No charges this month.</div>{% endif %}
+  </div>
+</section>
+
+<!-- Row 3: category table + rewards -->
+<section class="dash-row row-details">
+  <div class="panel">
+    <div class="panel-title">Category breakdown <small>average of up to 6 earlier months</small></div>
+    <div class="table-scroll">
+    <table class="theme-table">
+      <thead>
+        <tr><th>Category</th><th class="num">This month</th><th class="num">Last month</th>
+            <th class="num">Change</th><th class="num">Average</th><th class="num">Charges</th></tr>
+      </thead>
+      <tbody>
+        {% for r in d.category_table %}
+        <tr>
+          <td>{{ r.name }}</td>
+          <td class="num">{{ eur(r.this_month) }}</td>
+          <td class="num">{{ eur(r.last_month) }}</td>
+          <td class="num">
+            {% if r.change is none %}<span class="text-muted-theme">–</span>
+            {% else %}<span class="{{ 'delta-up' if r.change > 0 else 'delta-down' }}">{{ '+' if r.change > 0 }}{{ "%.0f"|format(r.change) }}%</span>{% endif %}
+          </td>
+          <td class="num">{{ eur(r.average) }}</td>
+          <td class="num">{{ r.count }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">No categorised spending yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Rewards <small>last {{ d.rewards.months }} months</small></div>
+    {% set r = d.rewards %}
+    {% set pct = r.redemption_pct or 0 %}
+    {% set circ = 2 * 3.14159 * 52 %}
+    {% if r.redemption_pct is none %}
+    <div class="ring-wrap">
+      <div class="uncat-number mt-3">{{ "{:,}".format(r.earned) }}</div>
+      <div class="kpi-sub">points earned in the last {{ r.months }} months</div>
+      <div class="kpi-sub mt-3">Balance and redemptions appear once statement summaries are imported.</div>
+    </div>
+    {% else %}
+    <div class="ring-wrap">
+      <svg width="140" height="140" viewBox="0 0 140 140" role="img"
+           aria-label="{{ pct }}% of points earned in the last {{ r.months }} months were redeemed">
+        <circle cx="70" cy="70" r="52" fill="none" stroke="var(--rose-100)" stroke-width="12"/>
+        <circle cx="70" cy="70" r="52" fill="none" stroke="var(--navy-700)" {% if not pct %}visibility="hidden"{% endif %} stroke-width="12" stroke-linecap="round"
+                stroke-dasharray="{{ circ * pct / 100 }} {{ circ }}" transform="rotate(-90 70 70)"/>
+        <text x="70" y="70" text-anchor="middle" class="ring-center-value">{{ "{:,}".format(r.balance) if r.balance is not none else "–" }}</text>
+        <text x="70" y="88" text-anchor="middle" class="ring-center-label">points balance</text>
+      </svg>
+      <div class="ring-stats">
+        <div><strong>{{ "{:,}".format(r.earned) }}</strong>earned</div>
+        <div><strong>{{ "{:,}".format(r.redeemed) }}</strong>redeemed</div>
+        <div><strong>{{ eur(r.balance_eur) }}</strong>balance value</div>
+      </div>
+      <div class="kpi-sub">{{ r.redemption_pct }}% of earned points redeemed</div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- Row 4: extras -->
+<section class="dash-row row-extras">
+  <div class="panel">
+    <div class="panel-title">Biggest charges</div>
+    <div class="table-scroll">
+    <table class="theme-table">
+      <tbody>
+        {% for c in d.biggest %}
+        <tr>
+          <td class="text-muted-theme" style="white-space: nowrap;">{{ c.date[8:10] }}.{{ c.date[5:7] }}.</td>
+          <td><div>{{ c.description }}</div><div class="kpi-sub">{{ c.category }}</div></td>
+          <td class="num" style="white-space: nowrap;">{{ eur(c.amount) }}</td>
+        </tr>
+        {% else %}
+        <tr><td class="empty-state">No charges this month.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Spend by weekday</div>
+    <div class="chart-box"><canvas id="chart-weekdays" aria-label="Spending by day of week" role="img"></canvas></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Uncategorised charges</div>
+    {% if d.uncategorized.count %}
+      <div class="uncat-number">{{ d.uncategorized.count }}</div>
+      <div class="kpi-sub mb-3">charges worth {{ eur(d.uncategorized.total) }} have no category yet</div>
+      <a class="btn btn-rose btn-sm" href="{{ url_for('spending.spending_page', month=d.month) }}">Categorise them</a>
+    {% else %}
+      <div class="empty-state"><i class="bi bi-check-circle" style="font-size: 26px; color: var(--positive);"></i>
+        <div class="mt-2">Every charge this month has a category.</div></div>
+    {% endif %}
+  </div>
+</section>
+
+<script id="dashboard-data" type="application/json">{{ {
+  "by_category": d.by_category, "trend": d.trend, "weekdays": d.weekdays, "month": d.month
+}|tojson }}</script>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if not d.empty %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  const data = JSON.parse(document.getElementById("dashboard-data").textContent);
+  const css = getComputedStyle(document.documentElement);
+  const v = name => css.getPropertyValue(name).trim();
+  const C = {
+    navy900: v("--navy-900"), navy700: v("--navy-700"), navy300: v("--navy-300"),
+    rose100: v("--rose-100"), rose300: v("--rose-300"), rose600: v("--rose-600"),
+    muted: v("--text-muted"), surface: v("--surface"), grid: "#F0E3E8",
+  };
+  // Fixed categorical order; anything past the 5th category folds into "Other".
+  const CATEGORICAL = [C.navy700, C.rose300, C.navy900, C.rose600, C.navy300];
+  const OTHER = "#CFC7CC";
+  const eur = n => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = C.muted;
+  Chart.defaults.plugins.legend.display = false;
+  Chart.defaults.plugins.tooltip.backgroundColor = C.navy900;
+  Chart.defaults.plugins.tooltip.padding = 8;
+  Chart.defaults.plugins.tooltip.cornerRadius = 8;
+
+  const barScales = {
+    x: { grid: { display: false }, border: { display: false } },
+    y: { beginAtZero: true, grid: { color: C.grid }, border: { display: false },
+         ticks: { maxTicksLimit: 5, callback: val => val.toLocaleString() + " €" } },
+  };
+
+  // Spend by category: donut + legend with shares.
+  const catCanvas = document.getElementById("chart-categories");
+  if (catCanvas) {
+    let cats = data.by_category.slice(0, CATEGORICAL.length);
+    const rest = data.by_category.slice(CATEGORICAL.length);
+    if (rest.length) {
+      cats.push({ name: "Other", total: rest.reduce((s, c) => s + c.total, 0),
+                  share: Math.round(10 * rest.reduce((s, c) => s + (c.share || 0), 0)) / 10 });
+    }
+    const colors = cats.map((c, i) => c.name === "Other" && rest.length ? OTHER : CATEGORICAL[i]);
+    new Chart(catCanvas, {
+      type: "doughnut",
+      data: { labels: cats.map(c => c.name),
+              datasets: [{ data: cats.map(c => c.total), backgroundColor: colors,
+                           borderColor: C.surface, borderWidth: 2, hoverOffset: 4 }] },
+      options: { cutout: "62%", maintainAspectRatio: false,
+                 plugins: { tooltip: { callbacks: { label: ctx => ` ${eur(ctx.parsed)} · ${cats[ctx.dataIndex].share}%` } } } },
+    });
+    const legend = document.getElementById("legend-categories");
+    cats.forEach((c, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="swatch"></span><span class="name"></span><span class="pct"></span>`;
+      li.querySelector(".swatch").style.background = colors[i];
+      li.querySelector(".name").textContent = c.name;
+      li.querySelector(".name").title = c.name;
+      li.querySelector(".pct").textContent = (c.share ?? 0) + "%";
+      legend.appendChild(li);
+    });
+  }
+
+  // Monthly trend: the selected month is highlighted.
+  new Chart(document.getElementById("chart-trend"), {
+    type: "bar",
+    data: { labels: data.trend.map(t => t.label),
+            datasets: [{ data: data.trend.map(t => t.total),
+                         backgroundColor: data.trend.map(t => t.month === data.month ? C.navy700 : C.navy300),
+                         borderRadius: 4, borderSkipped: "start", maxBarThickness: 26 }] },
+    options: { maintainAspectRatio: false, scales: barScales,
+               plugins: { tooltip: { callbacks: { label: ctx => " " + eur(ctx.parsed.y) } } } },
+  });
+
+  // Weekday spend.
+  new Chart(document.getElementById("chart-weekdays"), {
+    type: "bar",
+    data: { labels: data.weekdays.map(w => w.day),
+            datasets: [{ data: data.weekdays.map(w => w.total), backgroundColor: C.rose300,
+                         hoverBackgroundColor: C.rose600, borderRadius: 4, borderSkipped: "start", maxBarThickness: 26 }] },
+    options: { maintainAspectRatio: false, scales: barScales,
+               plugins: { tooltip: { callbacks: {
+                 label: ctx => ` ${eur(ctx.parsed.y)} · ${data.weekdays[ctx.dataIndex].count} charges` } } } },
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -60,6 +60,12 @@
             <button onclick="location.href='{{ url_for('main.analytics_page') }}'">
                 Analytics
             </button>
+            <button onclick="location.href='{{ url_for('spending.spending_page') }}'">
+                Spending by Category
+            </button>
+            <button onclick="location.href='{{ url_for('credit_card.dashboard') }}'">
+                Credit Card Dashboard
+            </button>
         </div>
     </div>
 </div>
@@ -319,7 +325,9 @@
                 <thead>
                     <tr>
                         <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Item</th>
-                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Price (&euro;)</th>
+                        <th style="text-align:right; border-bottom:1px solid #ccc; padding:6px;">Qty</th>
+                        <th style="text-align:right; border-bottom:1px solid #ccc; padding:6px;">Unit price (&euro;)</th>
+                        <th style="text-align:right; border-bottom:1px solid #ccc; padding:6px;">Total (&euro;)</th>
                         <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Date Purchased</th>
                         <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Shop</th>
                         <th style="text-align:left; border-bottom:1px solid #ccc; padding:6px;">Bill</th>
@@ -1330,6 +1338,18 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
 
     if (!form) return;
 
+    // "2" for pieces, "1.414 kg" for weighed items.
+    function formatQuantity(r) {
+        if (r.quantity == null) return "";
+        return r.unit === "kg" ? `${r.quantity} kg` : String(r.quantity);
+    }
+
+    // "2026-11-17" -> "17.11.2026"
+    function formatDate(iso) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
+        return m ? `${m[3]}.${m[2]}.${m[1]}` : (iso || "");
+    }
+
     form.addEventListener("submit", function (event) {
         event.preventDefault();
 
@@ -1364,13 +1384,32 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
                     return;
                 }
 
-                messageDiv.textContent = "";
+                // Answer "when did I last buy it, and how much?" above the table.
+                // Results are newest first; sum every line from the latest date.
+                const lastDate = results[0].date_purchased;
+                const lastLines = results.filter(r => r.date_purchased === lastDate);
+                messageDiv.textContent =
+                    `Last bought on ${formatDate(lastDate)}: ` +
+                    lastLines.map(r => `${formatQuantity(r)}${r.unit === "kg" ? "" : " ×"} ${r.item} (${r.shop || "unknown shop"})`).join(", ") +
+                    ` · ${results.length} purchase${results.length === 1 ? "" : "s"} found`;
+                messageDiv.className = "message";
+
                 results.forEach(function (r) {
                     const row = document.createElement("tr");
 
                     const itemCell = document.createElement("td");
                     itemCell.textContent = r.item || "";
                     itemCell.style.padding = "6px";
+
+                    const qtyCell = document.createElement("td");
+                    qtyCell.textContent = formatQuantity(r);
+                    qtyCell.style.padding = "6px";
+
+                    const unitPriceCell = document.createElement("td");
+                    unitPriceCell.textContent = r.unit_price != null
+                        ? r.unit_price.toFixed(2) + (r.unit === "kg" ? " /kg" : "")
+                        : "";
+                    unitPriceCell.style.padding = "6px";
 
                     const priceCell = document.createElement("td");
                     priceCell.textContent = r.price != null ? r.price.toFixed(2) : "";
@@ -1394,6 +1433,8 @@ document.getElementById("side-upload-credit-card-btn").onclick = function () {
                     }
 
                     row.appendChild(itemCell);
+                    row.appendChild(qtyCell);
+                    row.appendChild(unitPriceCell);
                     row.appendChild(priceCell);
                     row.appendChild(dateCell);
                     row.appendChild(shopCell);

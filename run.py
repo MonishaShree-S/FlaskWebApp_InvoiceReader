@@ -19,4 +19,5 @@ print(app.url_map)
 
 if __name__ == "__main__":
     start_incoming_watcher(app)  # watches incoming/ on background threads; stops when this process does
-    app.run(debug=True, use_reloader=False,port=8000)
+    import os
+    app.run(debug=True, use_reloader=False, port=int(os.environ.get("PORT", 8000)))

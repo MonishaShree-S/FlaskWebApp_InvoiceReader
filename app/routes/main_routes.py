@@ -25,6 +25,7 @@ import math
 from werkzeug.utils import secure_filename
 from app.services.credit_cards import parse_amazon_visa_statement
 from app.services import card_reconciliation
+from app.services.post_import import run_post_import
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -323,6 +324,9 @@ def upload_batch_files():
             else:
                 db_session.rollback()
 
+        if inserted:
+            run_post_import(userid)
+
         return jsonify({
             "success": True,
             "inserted_bills": inserted,
@@ -552,7 +556,7 @@ def upload_credit_card_bill():
 
             db_session.commit()
 
-        card_reconciliation.safe_auto_match(userid)
+        run_post_import(userid)
 
         return jsonify({
             "success": True,
@@ -1090,19 +1094,46 @@ def search_items():
             .all()
         )
 
-        results = [
-            {
+        results = []
+        for record in records:
+            quantity, unit, unit_price = _search_item_quantity(record)
+            results.append({
                 'item': record.item,
-                'price': float(record.price) if record.price is not None else None,
+                'price': float(record.price) if record.price is not None else None,  # line total
+                'quantity': quantity,
+                'unit': unit,              # "pcs" or "kg"
+                'unit_price': unit_price,  # per piece or per kg
                 'date_purchased': record.date.isoformat() if hasattr(record.date, 'isoformat') else record.date,
                 'shop': record.shopName,
                 'billId': record.billId,
                 'bill_link': url_for('main.view_data', billId=record.billId)
-            }
-            for record in records
-        ]
+            })
 
         return jsonify({'results': results})
+
+
+def _search_item_quantity(record):
+    """
+    (quantity, unit, unit_price) for one groceries row.
+    Weighed items (unit_type "kg") store the amount in weight_quantity and
+    an unreliable 0/1 in quantity; everything else (unit_type "piece", or
+    NULL on older rows) is counted in quantity.
+    """
+    def num(value):
+        return float(value) if value is not None else None
+
+    price = num(record.price)
+    if (record.unit_type or '').lower() == 'kg' and record.weight_quantity:
+        quantity = round(float(record.weight_quantity), 3)
+        unit_price = num(record.unit_price_pricePerKg) or num(record.unit_price)
+        unit = 'kg'
+    else:
+        quantity = int(record.quantity) if record.quantity else 1
+        unit_price = num(record.unit_price)
+        unit = 'pcs'
+    if unit_price is None and price is not None and quantity:
+        unit_price = round(price / quantity, 2)
+    return quantity, unit, unit_price
 
 @main_bp.route('/view_invoices_by_month', methods=['GET'])
 @login_required
